@@ -10,21 +10,17 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-
   const handleSelectChatUser = (user) => {
     setChatUser(user); 
   };
-
 
   const handleCloseChat = () => {
     setChatUser(null);
   };
 
-
   const handleOpenAboutUs = () => {
     setOpenAboutUs(true);
   };
-
 
   const handleCloseAboutUs = () => {
     setOpenAboutUs(false);
@@ -113,3 +109,75 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
                 },
               }}
             >
+              About Us
+            </Button>
+          </Box>
+        )}
+      </Box>
+      <Dialog
+        open={openAboutUs}
+        onClose={handleCloseAboutUs}
+        TransitionComponent={Fade}
+        TransitionProps={{ timeout: 500 }}
+        PaperProps={{
+          sx: {
+            borderRadius: '12px',
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
+            backgroundColor: '#f5f7fb',
+          }
+        }}
+      >
+        <DialogTitle sx={{ 
+          textAlign: 'center', 
+          fontSize: '24px', 
+          fontWeight: 'bold',
+          color: '#AD49E1', // Changed to purple
+          borderBottom: '2px solid #e0e0e0',
+          pb: 2,
+        }}>
+          Team Chatify
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          {members.map((member, index) => (
+            <Typography key={index} variant="body1" sx={{ 
+              marginBottom: '12px',
+              color: '#555',
+              fontSize: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              '&:before': {
+                content: '"•"',
+                color: theme.palette.primary.main,
+                fontWeight: 'bold',
+                marginRight: '8px',
+                fontSize: '20px',
+              }
+            }}>
+              {member}
+            </Typography>
+          ))}
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
+          <Button 
+            onClick={handleCloseAboutUs} 
+            color="primary"
+            variant="contained"
+            sx={{
+              borderRadius: '20px',
+              padding: '8px 24px',
+              textTransform: 'none',
+              backgroundColor: '#AD49E1', 
+              '&:hover': {
+                backgroundColor: '#7A1CAC', 
+              },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default ChatLayout;
