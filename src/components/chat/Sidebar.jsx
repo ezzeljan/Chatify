@@ -68,6 +68,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
               unreadCount,
             };
 
+            //unread message
+
             lastMsgs[otherUserId] = {
               message: latestMessage.message || '',
               messageOG: latestMessage.messageOG || '',
