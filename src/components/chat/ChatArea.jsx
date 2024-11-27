@@ -18,6 +18,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
   const [showOriginalFor, setShowOriginalFor] = useState(null);
   const [contactLanguage, setContactLanguage] = useState(chatUser.language);
   const [showLanguageNotification, setShowLanguageNotification] = useState(false);
+  const [chatUserStatus, setChatUserStatus] = useState('offline');
   const messagesEndRef = useRef(null);
   const previousChatUserRef = useRef(chatUser);
   const [isSending, setIsSending] = useState(false);
@@ -119,6 +120,10 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         }
       });
 
+      const statusUnsubscribe = onValue(userStatusRef, (snapshot) => {
+        const status = snapshot.val();
+        setChatUserStatus(status || 'offline');
+      });
 
       return () => {
         off(messagesRef);
@@ -381,6 +386,34 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
             },
           }}
         >
+          <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={handleUserInfoClick}>
+            <Box sx={{ position: 'relative', mr: 2 }}>
+              <Avatar 
+                src={chatUser.profileImageUrl} 
+                sx={{ width: 48, height: 48, border: '2px solid #e0e0e0' }}
+              />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 2,
+                  right: 2,
+                  width: 12,
+                  height: 12,
+                  backgroundColor: chatUserStatus === 'online' ? '#66BB6A' : '#747f8d',
+                  borderRadius: '50%',
+                  border: '2px solid #ffffff',
+                }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <Typography variant="h6" sx={{ fontWeight: '600', color: '#333', mb: 0.5, lineHeight: 1 }}>
+                {chatUser.username}
+              </Typography>
+              <Typography variant="caption" sx={{ color: chatUserStatus === 'online' ? '#66BB6A' : '#747f8d', fontWeight: '500' }}>
+                {chatUserStatus.charAt(0).toUpperCase() + chatUserStatus.slice(1)}
+              </Typography>
+            </Box>
+          </Box>
           <IconButton 
             onClick={onClose}
             sx={{ 

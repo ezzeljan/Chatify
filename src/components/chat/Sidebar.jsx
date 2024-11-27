@@ -12,8 +12,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   const [searchQuery, setSearchQuery] = useState('');
   const [lastMessages, setLastMessages] = useState({});
   const [unreadMessages, setUnreadMessages] = useState({});
-  const [selectedUserId, setSelectedUserId] = useState(null);
-  const [filter, setFilter] = useState('recent');
+  const [selectedUserId, setSelectedUserId] = useState(null); // Track the selected user
+  const [filter, setFilter] = useState('recent'); // Filter: 'recent' or 'all'
   const [userStatuses, setUserStatuses] = useState({});
 
   useEffect(() => {
@@ -67,8 +67,6 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
               hasUnread,
               unreadCount,
             };
-
-            //unread message
 
             lastMsgs[otherUserId] = {
               message: latestMessage.message || '',
@@ -172,18 +170,18 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
         borderRight: '1px solid #e0e0e0',
         position: 'relative',
         boxShadow: '0px 0px 10px rgba(0, 0, 0, 0.1)',
-        width: '350px',
-        minWidth: '300px',
+        width: '350px', // Increased from 320px to 350px
+        minWidth: '300px', // Increased from 280px to 300px
       }}
     >
-      {/* Search Bar */}
+      {/* Search Bar */} 
       <Box
         sx={{
           position: 'sticky',
           top: 0,
           zIndex: 1,
           backgroundColor: '#ffffff',
-          p: 1,
+          p: 1, // Reduced padding
           borderBottom: '1px solid #e0e0e0',
         }}
       >
@@ -202,8 +200,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                 backgroundColor: '#9600ce',
                 color: '#fff',
               },
-              fontSize: '0.8rem',
-              padding: '4px 8px',
+              fontSize: '0.8rem', // Smaller font size
+              padding: '4px 8px', // Reduced padding
             }}
           >
             Recent
@@ -220,8 +218,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                 backgroundColor: '#9600ce',
                 color: '#fff',
               },
-              fontSize: '0.8rem',
-              padding: '4px 8px',
+              fontSize: '0.8rem', // Smaller font size
+              padding: '4px 8px', // Reduced padding
             }}
           >
             All Users
@@ -276,7 +274,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                   </ListItemAvatar>
                   <ListItemText
                     primary={
-                      <Typography sx={{
+                      <Typography sx={{ 
                         fontWeight: unreadMessages[user.userId]?.hasUnread && user.userId !== activeChatUserId ? 'bold' : 'normal',
                         fontSize: '0.9rem',
                       }}>
@@ -285,13 +283,13 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                     }
                     secondary={
                       <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: '0.8rem' }}>
-                        {lastMessages[user.userId]
+                        {lastMessages[user.userId] 
                           ? truncateMessage(
-                            lastMessages[user.userId].senderId === currentUser.uid
-                              ? lastMessages[user.userId].messageOG
-                              : lastMessages[user.userId].message,
-                            20
-                          )
+                              lastMessages[user.userId].senderId === currentUser.uid 
+                                ? lastMessages[user.userId].messageOG 
+                                : lastMessages[user.userId].message, 
+                              20
+                            ) 
                           : user.email}
                       </Typography>
                     }
@@ -326,10 +324,10 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
             }}
           >
             <Typography variant="body1" color="text.secondary" gutterBottom>
-              {searchQuery.trim()
+              {searchQuery.trim() 
                 ? "No users found matching your search."
-                : filter === 'recent'
-                  ? "You don't have any recent conversations."
+                : filter === 'recent' 
+                  ? "You don't have any recent conversations." 
                   : "No users available."}
             </Typography>
             {!searchQuery.trim() && filter === 'recent' && (
@@ -347,7 +345,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
           position: 'sticky',
           bottom: 0,
           zIndex: 1,
-          p: 1,
+          p: 1, // Reduced padding
           backgroundColor: '#ffffff',
           borderTop: '1px solid #e0e0e0',
         }}
