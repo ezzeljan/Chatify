@@ -10,6 +10,7 @@ import ChatPage from './components/chat/ChatPage';
 import Register from './components/login-register/Register';
 import ForgotPassword from './components/login-register/ForgotPassword';
 import ProfileSetup from './components/login-register/ProfileSetup';
+import LandingPage from './components/landing/LandingPage';
 import chatifyLogo from './assets/chatifylogo.png';
 
 const LoadingSpinner = React.memo(() => (
@@ -91,7 +92,7 @@ const AppRoutes = React.memo(() => {
   const { currentUser, logout } = useAuth();
 
   const routes = useMemo(() => [
-    { path: "/", element: <Navigate to="/login" /> },
+    { path: "/", element: <LandingPage /> },
     { path: "/login", element: currentUser ? <Navigate to="/chat" /> : <Login /> },
     { path: "/register", element: currentUser ? <Navigate to="/chat" /> : <Register /> },
     { 
