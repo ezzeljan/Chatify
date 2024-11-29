@@ -4,6 +4,9 @@ import { getDatabase, ref, onValue, update, off } from 'firebase/database';
 import SearchBar from './SearchBar';
 import UserProfile from './UserProfile';
 import { MessageOutlined, PeopleOutline } from '@mui/icons-material';
+import CircleIcon from '@mui/icons-material/Circle';
+import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
 const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }) => {
   const theme = useTheme();
@@ -158,21 +161,67 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
     return message;
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'online':
+        return '#66BB6A';
+      case 'busy':
+        return '#f44336';
+      case 'away':
+        return '#ffa726';
+      default:
+        return '#747f8d';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'online':
+        return <CircleIcon sx={{ fontSize: 12, color: '#66BB6A' }} />;
+      case 'busy':
+        return <DoNotDisturbOnIcon sx={{ 
+          fontSize: 12, 
+          color: '#f44336',
+          backgroundColor: '#f44336',
+          borderRadius: '50%',
+          '& path:first-of-type': {
+            fill: 'white',
+          }
+        }} />;
+      case 'away':
+        return <AccessTimeIcon sx={{ 
+          fontSize: 12, 
+          color: '#ffa726',
+          backgroundColor: '#ffa726',
+          borderRadius: '50%',
+          '& path': {
+            fill: 'white',
+          }
+        }} />;
+      default:
+        return <CircleIcon sx={{ fontSize: 12, color: '#747f8d' }} />;
+    }
+  };
+
   return (
     <Box sx={{ 
       height: '100vh',
       width: '100%',
-      backgroundColor: 'background.paper',
+      backgroundColor: theme.palette.mode === 'dark' 
+        ? 'linear-gradient(180deg, #150016 0%, #29104A 100%)' 
+        : 'background.paper',
       borderRight: '1px solid',
-      borderColor: 'divider',
+      borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
       display: 'flex',
       flexDirection: 'column',
     }}>
       <Box sx={{ 
         p: 2,
         borderBottom: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: theme.palette.mode === 'dark' ? 'background.paper' : '#ffffff',
+        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)' 
+          : '#ffffff',
       }}>
         <SearchBar onSearch={handleSearch} />
         <ButtonGroup fullWidth size="small" sx={{ mt: 1 }}>
@@ -226,18 +275,19 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
       <List sx={{ 
         flexGrow: 1,
         overflowY: 'auto',
-        overflowX: 'hidden', // Prevent horizontal scrolling
+        overflowX: 'hidden',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)' 
+          : 'transparent',
         '&::-webkit-scrollbar': {
           width: '8px',
         },
         '&::-webkit-scrollbar-track': {
-          background: theme.palette.mode === 'dark' 
-            ? 'rgba(255, 255, 255, 0.05)' 
-            : '#f1f1f1',
+          background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
         },
         '&::-webkit-scrollbar-thumb': {
           background: theme.palette.mode === 'dark' 
-            ? 'rgba(255, 255, 255, 0.2)' 
+            ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
             : '#888',
           borderRadius: '4px',
         },
@@ -280,11 +330,20 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                   right: 0,
                   width: 12,
                   height: 12,
-                  backgroundColor: userStatuses[user.userId] === 'online' ? '#66BB6A' : '#747f8d',
+                  backgroundColor: 'transparent',
                   borderRadius: '50%',
                   border: `2px solid ${theme.palette.background.paper}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  '& .MuiSvgIcon-root': {
+                    width: '100%',
+                    height: '100%',
+                  }
                 }}
-              />
+              >
+                {getStatusIcon(userStatuses[user.userId])}
+              </Box>
             </Box>
             <ListItemText
               primary={
@@ -349,8 +408,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
 
       <Box sx={{ 
         borderTop: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: theme.palette.mode === 'dark' ? 'background.paper' : '#ffffff',
+        borderColor: theme.palette.mode === 'dark' ? '#29104A' : 'divider',
+        backgroundColor: theme.palette.mode === 'dark' ? '#150016' : '#ffffff',
       }}>
         <UserProfile currentUser={currentUser} handleLogout={handleLogout} />
       </Box>

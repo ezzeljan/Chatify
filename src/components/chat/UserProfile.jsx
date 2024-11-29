@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Avatar, IconButton, Button, Dialog, DialogActions, DialogContent, LinearProgress, TextField, Popover, List, ListItem, ListItemButton, useMediaQuery, useTheme as useMuiTheme, Switch, ListItemIcon, ListItemText } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, Button, Dialog, DialogActions, DialogContent, LinearProgress, TextField, Popover, List, ListItem, ListItemButton, useMediaQuery, useTheme as useMuiTheme, Switch, ListItemIcon, ListItemText, Menu, MenuItem } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PersonIcon from '@mui/icons-material/Person';
@@ -9,6 +9,9 @@ import LanguageIcon from '@mui/icons-material/Language';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 import CloseIcon from '@mui/icons-material/Close';
+import CircleIcon from '@mui/icons-material/Circle';
+import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { auth, database, storage } from '../../firebaseConfig';
 import { ref, onValue, update, onDisconnect, set } from 'firebase/database';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
@@ -44,6 +47,7 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedSetting, setSelectedSetting] = useState('My Account');
   const muiTheme = useMediaQuery('(prefers-reduced-motion: reduce)');
+  const [statusAnchorEl, setStatusAnchorEl] = useState(null);
 
   // Settings sections configuration
   const settingsSections = [
@@ -52,6 +56,13 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
     { id: 'Appearance', icon: <DarkModeIcon />, color: '#FAA61A' },
     { id: 'Notifications', icon: <NotificationsIcon />, color: '#ED4245' },
     { id: 'Language', icon: <LanguageIcon />, color: '#AD49E1' },
+  ];
+
+  const statusOptions = [
+    { value: 'online', label: 'Online', icon: <CircleIcon sx={{ color: '#66BB6A' }} /> },
+    { value: 'busy', label: 'Busy', icon: <DoNotDisturbOnIcon sx={{ color: '#f44336' }} /> },
+    { value: 'away', label: 'Away', icon: <AccessTimeIcon sx={{ color: '#ffa726' }} /> },
+    { value: 'offline', label: 'Offline', icon: <CircleIcon sx={{ color: '#747f8d' }} /> }
   ];
 
   useEffect(() => {
@@ -241,6 +252,67 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
     setSettingsOpen(false);
   };
 
+  const handleStatusClick = (event) => {
+    setStatusAnchorEl(event.currentTarget);
+  };
+
+  const handleStatusClose = () => {
+    setStatusAnchorEl(null);
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    const userRef = ref(database, `users/${currentUser.uid}`);
+    const userStatusRef = ref(database, `status/${currentUser.uid}`);
+    
+    await set(userStatusRef, newStatus);
+    await update(userRef, { status: newStatus });
+    
+    setUserData(prevData => ({ ...prevData, status: newStatus }));
+    handleStatusClose();
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'online':
+        return '#66BB6A';
+      case 'busy':
+        return '#f44336';
+      case 'away':
+        return '#ffa726';
+      default:
+        return '#747f8d';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'online':
+        return <CircleIcon sx={{ fontSize: 12, color: '#66BB6A' }} />;
+      case 'busy':
+        return <DoNotDisturbOnIcon sx={{ 
+          fontSize: 12, 
+          color: '#f44336',
+          backgroundColor: '#f44336',
+          borderRadius: '50%',
+          '& path:first-of-type': {
+            fill: 'white',
+          }
+        }} />;
+      case 'away':
+        return <AccessTimeIcon sx={{ 
+          fontSize: 12, 
+          color: '#ffa726',
+          backgroundColor: '#ffa726',
+          borderRadius: '50%',
+          '& path': {
+            fill: 'white',
+          }
+        }} />;
+      default:
+        return <CircleIcon sx={{ fontSize: 12, color: '#747f8d' }} />;
+    }
+  };
+
   const renderSettingsContent = () => {
     switch (selectedSetting) {
       case 'My Account':
@@ -356,9 +428,12 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
         justifyContent: 'space-between',
         p: 1.5,
         borderRadius: '5px',
-        backgroundColor: '#7a49a5',
+        background: theme.palette.mode === 'dark'
+          ? 'linear-gradient(135deg, #522C5D 0%, #845162 100%)'
+          : '#7a49a5',
         color: '#fff',
-        borderTop: '1px solid #23272A'
+        borderTop: '1px solid',
+        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : '#23272A',
       }}>
         <Box sx={{ 
           display: 'flex', 
@@ -373,7 +448,7 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
               type="file"
               id="avatar-upload"
               style={{ display: 'none' }}
-              onChange={handleAvatarChange} // Handle the file selection
+              onChange={handleAvatarChange}
             />
             <label htmlFor="avatar-upload">
               <Avatar 
@@ -381,19 +456,32 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
                 sx={{ width: 40, height: 40, cursor: 'pointer' }}
               />
             </label>
-            {/* Online status indicator */}
             <Box
+              onClick={handleStatusClick}
               sx={{
                 position: 'absolute',
                 bottom: 0,
                 right: 0,
                 width: 12,
                 height: 12,
-                backgroundColor: userData.status === 'online' ? '#66BB6A' : '#747f8d', // Changed from '#43b581' to '#66BB6A'
+                backgroundColor: 'transparent',
                 borderRadius: '50%',
                 border: '2px solid #7a49a5',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                '&:hover': {
+                  transform: 'scale(1.1)',
+                },
+                '& .MuiSvgIcon-root': {
+                  width: '100%',
+                  height: '100%',
+                }
               }}
-            />
+            >
+              {getStatusIcon(userData.status)}
+            </Box>
           </Box>
           <Box sx={{ flexGrow: 1, minWidth: 0 }}> {/* Add minWidth: 0 to allow text truncation */}
             {editingUsername ? (
@@ -560,19 +648,23 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
           sx: {
             height: '80vh',
             m: 0,
-            bgcolor: 'background.paper',
-            color: 'text.primary',
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(135deg, #150016 0%, #29104A 100%)'
+              : 'background.paper',
+            color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
           }
         }}
       >
         <Box sx={{ display: 'flex', height: '100%' }}>
-          {/* Sidebar */}
+          {/* Settings Sidebar */}
           <Box
             sx={{
               width: 240,
-              bgcolor: 'background.default',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(180deg, #29104A 0%, #522C5D 100%)'
+                : 'background.default',
               borderRight: '1px solid',
-              borderColor: 'divider',
+              borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
               overflow: 'auto',
             }}
           >
@@ -603,17 +695,35 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
             </List>
           </Box>
 
-          {/* Content */}
-          <Box sx={{ flexGrow: 1, overflow: 'auto', bgcolor: 'background.paper' }}>
+          {/* Settings Content */}
+          <Box sx={{ 
+            flexGrow: 1, 
+            overflow: 'auto', 
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)'
+              : 'background.paper',
+          }}>
             <Box sx={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
               p: 2, 
               borderBottom: '1px solid',
-              borderColor: 'divider'
+              borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, #522C5D 0%, #845162 100%)'
+                : 'inherit',
             }}>
-              <Typography variant="h6">{selectedSetting}</Typography>
-              <IconButton onClick={handleSettingsClose} sx={{ color: 'text.primary' }}>
+              <Typography variant="h6" sx={{ 
+                color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'inherit' 
+              }}>
+                {selectedSetting}
+              </Typography>
+              <IconButton 
+                onClick={handleSettingsClose} 
+                sx={{ 
+                  color: theme.palette.mode === 'dark' ? '#FFE9D8' : 'text.primary' 
+                }}
+              >
                 <CloseIcon />
               </IconButton>
             </Box>
@@ -621,6 +731,55 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
           </Box>
         </Box>
       </Dialog>
+
+      {/* Status Menu */}
+      <Menu
+        anchorEl={statusAnchorEl}
+        open={Boolean(statusAnchorEl)}
+        onClose={handleStatusClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+      >
+        {statusOptions.map((option) => (
+          <MenuItem
+            key={option.value}
+            onClick={() => handleStatusChange(option.value)}
+            selected={userData.status === option.value}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              minWidth: 150,
+              '& .MuiSvgIcon-root': {
+                color: getStatusColor(option.value),
+                ...(option.value === 'busy' && {
+                  backgroundColor: '#f44336',
+                  borderRadius: '50%',
+                  '& path:first-of-type': {
+                    fill: 'white',
+                  }
+                }),
+                ...(option.value === 'away' && {
+                  backgroundColor: '#ffa726',
+                  borderRadius: '50%',
+                  '& path': {
+                    fill: 'white',
+                  }
+                }),
+              },
+            }}
+          >
+            {option.icon}
+            <Typography>{option.label}</Typography>
+          </MenuItem>
+        ))}
+      </Menu>
     </Box>
   );
 };

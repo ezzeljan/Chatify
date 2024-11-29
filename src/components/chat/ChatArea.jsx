@@ -4,6 +4,9 @@ import SendIcon from '@mui/icons-material/Send';
 import CloseIcon from '@mui/icons-material/Close';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import ReplyIcon from '@mui/icons-material/Reply';
+import CircleIcon from '@mui/icons-material/Circle';
+import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { getDatabase, ref, onValue, push, set, serverTimestamp, off, update, get } from "firebase/database";
 import { translateToLanguage } from '../../services/geminiTranslator';
 import TranslationAnimation from './TranslationAnimation';
@@ -39,6 +42,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
   const [replyingTo, setReplyingTo] = useState(null);
   const messageRefs = useRef({});
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const [previousLanguage, setPreviousLanguage] = useState(chatUser.language);
 
   const pulseAnimation = keyframes`
     0% {
@@ -113,11 +117,12 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
 
       const languageUnsubscribe = onValue(userLanguageRef, (snapshot) => {
         const newLanguage = snapshot.val();
-        if (newLanguage && newLanguage !== contactLanguage) {
+        if (newLanguage && newLanguage !== previousLanguage) {
           setContactLanguage(newLanguage);
           if (previousChatUserRef.current.userId === chatUser.userId) {
             setShowLanguageNotification(true);
           }
+          setPreviousLanguage(newLanguage);
         }
       });
 
@@ -132,10 +137,12 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         off(userStatusRef);
       };
     }
-  }, [currentUser, chatUser, messages.length, isAtBottom]);
+  }, [currentUser, chatUser, messages.length, isAtBottom, previousLanguage]);
 
   useEffect(() => {
     setContactLanguage(chatUser.language);
+    setPreviousLanguage(chatUser.language);
+    setShowLanguageNotification(false);
     previousChatUserRef.current = chatUser;
   }, [chatUser]);
 
@@ -368,91 +375,142 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
     scrollToMessage(replyToMessageId);
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'online':
+        return '#66BB6A';
+      case 'busy':
+        return '#f44336';
+      case 'away':
+        return '#ffa726';
+      default:
+        return '#747f8d';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'online':
+        return <CircleIcon sx={{ fontSize: 12, color: '#66BB6A' }} />;
+      case 'busy':
+        return <DoNotDisturbOnIcon sx={{ 
+          fontSize: 12, 
+          color: '#f44336',
+          backgroundColor: '#f44336',
+          borderRadius: '50%',
+          '& path:first-of-type': {
+            fill: 'white',
+          }
+        }} />;
+      case 'away':
+        return <AccessTimeIcon sx={{ 
+          fontSize: 12, 
+          color: '#ffa726',
+          backgroundColor: '#ffa726',
+          borderRadius: '50%',
+          '& path': {
+            fill: 'white',
+          }
+        }} />;
+      default:
+        return <CircleIcon sx={{ fontSize: 12, color: '#747f8d' }} />;
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'online':
+        return 'Online';
+      case 'busy':
+        return 'Busy';
+      case 'away':
+        return 'Away';
+      default:
+        return 'Offline';
+    }
+  };
+
   return (
     <Box sx={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      backgroundColor: 'background.default', 
-      position: 'relative' 
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      bgcolor: theme.palette.mode === 'dark' ? '#150016' : 'background.paper',
     }}>
-      {chatUser && (
-        <Box 
-          sx={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            p: 2, 
-            backgroundColor: 'background.paper', 
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderRadius: '8px 8px 0 0',
-            transition: 'background-color 0.3s',
-            '&:hover': {
-              backgroundColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.02)',
-            },
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }} onClick={handleUserInfoClick}>
-            <Box sx={{ position: 'relative', mr: 2 }}>
-              <Avatar 
-                src={chatUser.profileImageUrl} 
-                sx={{ width: 48, height: 48, border: '2px solid #e0e0e0' }}
-              />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: 2,
-                  right: 2,
-                  width: 12,
-                  height: 12,
-                  backgroundColor: chatUserStatus === 'online' ? '#66BB6A' : '#747f8d',
-                  borderRadius: '50%',
-                  border: '2px solid #ffffff',
-                }}
-              />
-            </Box>
-            <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-              <Typography variant="h6" sx={{ 
-                fontWeight: '600', 
-                color: theme.palette.mode === 'dark' ? '#fff' : '#333', 
-                mb: 0.5, 
-                lineHeight: 1 
-              }}>
-                {chatUser.username}
-              </Typography>
-              <Typography variant="caption" sx={{ color: chatUserStatus === 'online' ? '#66BB6A' : '#747f8d', fontWeight: '500' }}>
-                {chatUserStatus.charAt(0).toUpperCase() + chatUserStatus.slice(1)}
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton 
-            onClick={onClose}
-            sx={{ 
-              color: '#888',
-              '&:hover': { color: '#333', backgroundColor: 'rgba(0, 0, 0, 0.04)' },
-              transition: 'all 0.2s',
+      {/* Chat Header */}
+      <Box sx={{
+        p: 2,
+        display: 'flex',
+        alignItems: 'center',
+        borderBottom: '1px solid',
+        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        background: theme.palette.mode === 'dark'
+          ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
+          : '#ffffff',
+      }}>
+        <Box sx={{ position: 'relative', mr: 2 }}>
+          <Avatar
+            src={chatUser.profileImageUrl}
+            sx={{ width: 40, height: 40, cursor: 'pointer' }}
+            onClick={() => setIsUserInfoModalOpen(true)}
+          />
+          <Box
+            sx={{
+              position: 'absolute',
+              bottom: 0,
+              right: 0,
+              width: 12,
+              height: 12,
+              backgroundColor: 'transparent',
+              borderRadius: '50%',
+              border: '2px solid #7a49a5',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              '& .MuiSvgIcon-root': {
+                width: '100%',
+                height: '100%',
+              }
             }}
           >
+            {getStatusIcon(chatUserStatus)}
+          </Box>
+        </Box>
+        <Box>
+          <Typography variant="subtitle1" sx={{ fontWeight: 500, color: theme.palette.text.primary }}>
+            {chatUser.username}
+          </Typography>
+          <Typography variant="caption" sx={{ color: getStatusColor(chatUserStatus), display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {getStatusText(chatUserStatus)}
+          </Typography>
+        </Box>
+        <Box sx={{ ml: 'auto' }}>
+          <IconButton onClick={onClose} sx={{ color: theme.palette.text.secondary }}>
             <CloseIcon />
           </IconButton>
         </Box>
-      )}
-      <Box 
-        ref={chatContainerRef}
-        sx={{ 
-          flexGrow: 1, 
-          overflowY: 'auto', 
-          p: 3, 
-          backgroundColor: 'background.chat',
-          scrollbarWidth: 'none',
-          '&::-webkit-scrollbar': {
-            display: 'none'
-          },
-          position: 'relative',
-        }}
-      >
+      </Box>
+
+      <Box ref={chatContainerRef} sx={{ 
+        flexGrow: 1,
+        overflowY: 'auto',
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)' 
+          : 'background.default',
+        p: 3,
+        '&::-webkit-scrollbar': {
+          width: '8px',
+        },
+        '&::-webkit-scrollbar-track': {
+          background: 'transparent',
+        },
+        '&::-webkit-scrollbar-thumb': {
+          background: theme.palette.mode === 'dark' 
+            ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+            : '#888',
+          borderRadius: '4px',
+        },
+      }}>
         {messages.map((msg, index) => {
           const showAvatar = index === messages.length - 1 || messages[index + 1]?.senderId !== msg.senderId;
           const isLastMessageFromContact = (index === messages.length - 1 || messages[index + 1]?.senderId !== msg.senderId) && msg.senderId !== currentUser.uid;
@@ -499,19 +557,19 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                   sx={{
                     px: 2,
                     py: 1.5,
-                    backgroundColor: msg.messageId === selectedMessageId 
-                      ? theme.palette.mode === 'dark' 
-                        ? 'rgba(173, 73, 225, 0.3)' 
-                        : '#d1c4e9'
-                      : isCurrentUserMessage 
-                        ? theme.palette.primary.main
-                        : theme.palette.mode === 'dark'
-                          ? 'rgba(255, 255, 255, 0.1)'
-                          : '#E5D9F2',
+                    backgroundColor: isCurrentUserMessage
+                      ? theme.palette.mode === 'dark'
+                        ? 'rgba(82, 44, 93, 0.85)'  // Solid color with slight transparency for user messages
+                        : theme.palette.primary.main
+                      : theme.palette.mode === 'dark'
+                        ? 'rgba(132, 81, 98, 0.75)' // Solid color with slight transparency for contact messages
+                        : '#E5D9F2',
                     color: isCurrentUserMessage 
                       ? '#fff' 
                       : theme.palette.text.primary,
                     borderRadius: '16px',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
                     boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
                     position: 'relative',
                     wordWrap: 'break-word',
@@ -530,7 +588,9 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                       width: 0,
                       height: 0,
                       borderTop: '8px solid transparent',
-                      borderRight: `8px solid ${msg.messageId === selectedMessageId ? '#d1c4e9' : '#E5D9F2'}`,
+                      borderRight: theme.palette.mode === 'dark' 
+                        ? `8px solid rgba(132, 81, 98, 0.75)`
+                        : `8px solid #E5D9F2`,
                       borderBottom: '8px solid transparent',
                     } : (isCurrentUserMessage && isLastMessageFromCurrentUser) ? {
                       content: '""',
@@ -539,10 +599,21 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                       right: 10,
                       width: 0,
                       height: 0,
-                      borderTop: '9px solid #AD49E1',
+                      borderTop: theme.palette.mode === 'dark'
+                        ? `9px solid rgba(82, 44, 93, 0.85)`
+                        : `9px solid ${theme.palette.primary.main}`,
                       borderLeft: '8px solid transparent',
                       borderRight: '8px solid transparent',
                     } : undefined,
+                    '&:hover': {
+                      backgroundColor: isCurrentUserMessage
+                        ? theme.palette.mode === 'dark'
+                          ? 'rgba(82, 44, 93, 0.95)'  // Slightly more opaque on hover
+                          : theme.palette.primary.dark
+                        : theme.palette.mode === 'dark'
+                          ? 'rgba(132, 81, 98, 0.85)'  // Slightly more opaque on hover
+                          : '#d8c8eb',
+                    },
                   }}
                   onClick={(e) => handleMessageClick(e, msg)}
                 >
@@ -711,19 +782,21 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         </MenuItem>
       </Menu>
 
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          p: 2,
-          backgroundColor: 'background.paper',
-          borderTop: '1px solid',
-          borderColor: 'divider',
-          boxShadow: '0 -2px 8px rgba(0, 0, 0, 0.05)',
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        p: 2,
+        background: theme.palette.mode === 'dark' 
+          ? 'linear-gradient(180deg, #522C5D 0%, #29104A 100%)' 
+          : 'background.paper',
+        borderTop: '1px solid',
+        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        boxShadow: theme.palette.mode === 'dark' 
+          ? '0 -2px 8px rgba(21, 0, 22, 0.2)'
+          : '0 -2px 8px rgba(0, 0, 0, 0.05)',
+        position: 'relative',
+        zIndex: 1,
+      }}>
         {replyingTo && (
           <Box sx={{ 
             display: 'flex', 
