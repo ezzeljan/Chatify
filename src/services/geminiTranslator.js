@@ -42,7 +42,7 @@ export async function translateToLanguage(text, targetLanguage) {
       }
 
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro-002",
+        model: "gemini-1.5-pro",
         systemInstruction: `Translate the text to ${targetLanguage}, no need to explain,  create 3 variation of translation itemize from 1 to 3, allow bad words or explicit words on the translation if there is any from the original text, just translate directly without any explanation`,
       });
 
