@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Box, List, ListItem, ListItemText, Typography, Avatar, IconButton, Badge, ButtonGroup, Button, useTheme } from '@mui/material';
+import { Box, List, ListItem, ListItemText, Typography, Avatar, IconButton, Badge, ButtonGroup, Button, useTheme, Fab, AvatarGroup } from '@mui/material';
 import { getDatabase, ref, onValue, update, off } from 'firebase/database';
 import SearchBar from './SearchBar';
 import UserProfile from './UserProfile';
@@ -7,6 +7,9 @@ import { MessageOutlined, PeopleOutline } from '@mui/icons-material';
 import CircleIcon from '@mui/icons-material/Circle';
 import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import GroupsIcon from '@mui/icons-material/Groups';
+import AddIcon from '@mui/icons-material/Add';
+import CreateGroupDialog from './CreateGroupDialog';
 
 const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }) => {
   const theme = useTheme();
@@ -17,14 +20,19 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   const [lastMessages, setLastMessages] = useState({});
   const [unreadMessages, setUnreadMessages] = useState({});
   const [selectedUserId, setSelectedUserId] = useState(null); // Track the selected user
-  const [filter, setFilter] = useState('recent'); // Filter: 'recent' or 'all'
+  const [view, setView] = useState('recent'); // Filter: 'recent', 'all', or 'groups'
   const [userStatuses, setUserStatuses] = useState({});
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [groups, setGroups] = useState([]);
 
   useEffect(() => {
     const db = getDatabase();
     const usersRef = ref(db, 'users');
     const messagesRef = ref(db, 'messages');
     const statusRef = ref(db, 'status');
+    const groupsRef = ref(db, 'groups');
+    const groupMessagesRef = ref(db, 'groupMessages');
+    const userGroupsRef = ref(db, `userGroups/${currentUser.uid}`);
 
     const userUnsubscribe = onValue(usersRef, (snapshot) => {
       const allUsers = snapshot.val() ? Object.values(snapshot.val()) : [];
@@ -41,9 +49,9 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
 
     const messageUnsubscribe = onValue(messagesRef, (snapshot) => {
       const conversations = snapshot.val();
-      const userConvo = {};
-      const unreadMsg = {};
-      const lastMsgs = {};
+      const userConvo = { ...userConversations };
+      const unreadMsg = { ...unreadMessages };
+      const lastMsgs = { ...lastMessages };
 
       if (conversations) {
         Object.keys(conversations).forEach(chatId => {
@@ -62,6 +70,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
             userConvo[otherUserId] = {
               hasConversation: true,
               latestMessageTimestamp: latestMessage.timestamp,
+              type: 'user'
             };
 
             unreadMsg[otherUserId] = {
@@ -79,9 +88,88 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
         });
       }
 
-      setUserConversations(userConvo);
+      setUserConversations(prevConvo => ({
+        ...prevConvo,
+        ...Object.fromEntries(
+          Object.entries(userConvo).filter(([key]) => !key.startsWith('group_'))
+        )
+      }));
       setUnreadMessages(unreadMsg);
       setLastMessages(lastMsgs);
+    });
+
+    const groupsUnsubscribe = onValue(groupsRef, (snapshot) => {
+      const groupsData = snapshot.val();
+      if (groupsData) {
+        const userGroups = Object.values(groupsData).filter(group => 
+          group.members && group.members[currentUser.uid]
+        );
+        
+        setUserConversations(prev => {
+          const updatedConversations = { ...prev };
+          Object.keys(updatedConversations).forEach(key => {
+            if (key.startsWith('group_')) {
+              const groupId = key.replace('group_', '');
+              if (!userGroups.find(g => g.id === groupId)) {
+                delete updatedConversations[key];
+              }
+            }
+          });
+          return updatedConversations;
+        });
+        
+        setGroups(userGroups);
+      } else {
+        setGroups([]);
+      }
+    });
+
+    const groupMessagesUnsubscribe = onValue(groupMessagesRef, (snapshot) => {
+      const groupMessages = snapshot.val();
+      const groupConvo = {};
+      const unreadMsg = { ...unreadMessages };
+      const lastMsgs = { ...lastMessages };
+
+      if (groupMessages) {
+        Object.keys(groupMessages).forEach(groupId => {
+          const messages = Object.values(groupMessages[groupId]);
+          if (messages.length > 0) {
+            const latestMessage = messages.reduce((latest, current) => {
+              return (current.timestamp || 0) > (latest.timestamp || 0) ? current : latest;
+            });
+
+            const unreadCount = messages.filter(msg => 
+              msg.senderId !== currentUser.uid && !msg.read
+            ).length;
+
+            const groupKey = `group_${groupId}`;
+            groupConvo[groupKey] = {
+              hasConversation: true,
+              latestMessageTimestamp: latestMessage.timestamp,
+              type: 'group'
+            };
+
+            unreadMsg[groupKey] = {
+              hasUnread: unreadCount > 0,
+              unreadCount
+            };
+
+            lastMsgs[groupKey] = {
+              message: latestMessage.message || '',
+              senderId: latestMessage.senderId,
+              senderName: latestMessage.senderName,
+              type: 'group'
+            };
+          }
+        });
+      }
+
+      setUserConversations(prevConvo => ({
+        ...prevConvo,
+        ...groupConvo
+      }));
+      setUnreadMessages(prev => ({ ...prev, ...unreadMsg }));
+      setLastMessages(prev => ({ ...prev, ...lastMsgs }));
     });
 
     // Add this new effect to clear unread messages for the active chat
@@ -90,14 +178,42 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
         ...prev,
         [activeChatUserId]: { hasUnread: false, unreadCount: 0 }
       }));
+
+      // If it's a group chat, update read status in Firebase
+      if (activeChatUserId.startsWith('group_')) {
+        const groupId = activeChatUserId.replace('group_', '');
+        const db = getDatabase();
+        const groupMessagesRef = ref(db, `groupMessages/${groupId}`);
+        
+        onValue(groupMessagesRef, (snapshot) => {
+          const messages = snapshot.val();
+          if (messages) {
+            const updates = {};
+            Object.keys(messages).forEach((messageKey) => {
+              if (messages[messageKey].senderId !== currentUser.uid && !messages[messageKey].read) {
+                updates[`${messageKey}/read`] = true;
+              }
+            });
+            
+            if (Object.keys(updates).length > 0) {
+              update(groupMessagesRef, updates);
+            }
+          }
+        }, { onlyOnce: true }); // Only run once
+      }
     }
 
     return () => {
       off(usersRef);
       off(messagesRef);
       off(statusRef);
+      off(groupsRef);
+      off(groupMessagesRef);
+      off(userGroupsRef);
       userUnsubscribe();
       statusUnsubscribe();
+      groupsUnsubscribe();
+      groupMessagesUnsubscribe();
     };
   }, [currentUser, activeChatUserId]);
 
@@ -110,49 +226,89 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   };
 
   useEffect(() => {
-    let usersToDisplay = [];
+    let itemsToDisplay = [];
 
     if (searchQuery.trim()) {
       const lowerCaseQuery = searchQuery.toLowerCase();
-      usersToDisplay = users.filter(user =>
-        user.username.toLowerCase().includes(lowerCaseQuery) ||
-        user.email.toLowerCase().includes(lowerCaseQuery)
+      if (view === 'groups') {
+        itemsToDisplay = groups.filter(group =>
+          group.name.toLowerCase().includes(lowerCaseQuery)
+        );
+      } else {
+        itemsToDisplay = users.filter(user =>
+          user.username.toLowerCase().includes(lowerCaseQuery) ||
+          user.email.toLowerCase().includes(lowerCaseQuery)
+        );
+      }
+    } else if (view === 'recent') {
+      const recentUsers = users.filter(user => 
+        userConversations[user.userId]?.hasConversation
       );
-    } else if (filter === 'recent') {
-      usersToDisplay = users.filter(user => userConversations[user.userId]?.hasConversation);
-    } else if (filter === 'all') {
-      usersToDisplay = users;
+      const recentGroups = groups.filter(group => 
+        userConversations[`group_${group.id}`]?.hasConversation &&
+        group.members[currentUser.uid]
+      );
+      itemsToDisplay = [...recentUsers, ...recentGroups];
+    } else if (view === 'all') {
+      itemsToDisplay = users;
+    } else if (view === 'groups') {
+      itemsToDisplay = groups;
     }
 
-    const sortedUsers = sortUsersByLatestMessage(usersToDisplay);
-    setFilteredUsers(sortedUsers);
-  }, [searchQuery, users, userConversations, filter]);
+    const sortedItems = itemsToDisplay.sort((a, b) => {
+      const timestampA = userConversations[a.userId || `group_${a.id}`]?.latestMessageTimestamp || 0;
+      const timestampB = userConversations[b.userId || `group_${b.id}`]?.latestMessageTimestamp || 0;
+      return timestampB - timestampA;
+    });
+
+    setFilteredUsers(sortedItems);
+  }, [searchQuery, users, userConversations, view, groups, currentUser.uid]);
 
   const handleSearch = (query) => {
     setSearchQuery(query);
   };
 
-  const markMessagesAsRead = (userId) => {
-    const db = getDatabase();
-    const chatId = currentUser.uid < userId ? `${currentUser.uid}_${userId}` : `${userId}_${currentUser.uid}`;
-    const messagesRef = ref(db, `messages/${chatId}`);
-
-    onValue(messagesRef, (snapshot) => {
-      const messages = snapshot.val();
-      if (messages) {
-        Object.keys(messages).forEach((messageKey) => {
-          if (messages[messageKey].senderId !== currentUser.uid && !messages[messageKey].read) {
-            update(ref(db, `messages/${chatId}/${messageKey}`), { read: true });
-          }
-        });
-      }
-    });
+  const handleUserSelect = (user) => {
+    // Clear unread messages for the selected user
+    const userId = user.userId;
+    if (userId) {
+      setUnreadMessages(prev => ({
+        ...prev,
+        [userId]: { hasUnread: false, unreadCount: 0 }
+      }));
+    }
+    selectChatUser(user);
   };
 
-  const handleUserSelect = (user) => {
-    setSelectedUserId(user.userId); // Set the selected user
-    markMessagesAsRead(user.userId); // Mark all messages as read when user selects a conversation
-    selectChatUser(user); // Proceed with opening the conversation
+  const handleGroupSelect = (group) => {
+    // Clear unread messages for the selected group
+    const groupId = `group_${group.id}`;
+    setUnreadMessages(prev => ({
+      ...prev,
+      [groupId]: { hasUnread: false, unreadCount: 0 }
+    }));
+
+    // Update read status in Firebase
+    const db = getDatabase();
+    const groupMessagesRef = ref(db, `groupMessages/${group.id}`);
+    
+    onValue(groupMessagesRef, (snapshot) => {
+      const messages = snapshot.val();
+      if (messages) {
+        const updates = {};
+        Object.keys(messages).forEach((messageKey) => {
+          if (messages[messageKey].senderId !== currentUser.uid && !messages[messageKey].read) {
+            updates[`${messageKey}/read`] = true;
+          }
+        });
+        
+        if (Object.keys(updates).length > 0) {
+          update(groupMessagesRef, updates);
+        }
+      }
+    }, { onlyOnce: true }); // Only run once
+
+    selectChatUser(group);
   };
 
   const truncateMessage = (message, maxLength = 30) => {
@@ -227,14 +383,14 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
         <SearchBar onSearch={handleSearch} />
         <ButtonGroup fullWidth size="small" sx={{ mt: 1 }}>
           <Button
-            variant={filter === 'recent' ? 'contained' : 'outlined'}
-            onClick={() => setFilter('recent')}
+            variant={view === 'recent' ? 'contained' : 'outlined'}
+            onClick={() => setView('recent')}
             startIcon={<MessageOutlined />}
             sx={{
-              backgroundColor: filter === 'recent' 
+              backgroundColor: view === 'recent' 
                 ? theme.palette.primary.main 
                 : 'transparent',
-              color: filter === 'recent' 
+              color: view === 'recent' 
                 ? '#fff' 
                 : theme.palette.primary.main,
               border: `1px solid ${theme.palette.primary.main}`,
@@ -244,19 +400,20 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
               },
               fontSize: '0.8rem',
               padding: '4px 8px',
+              flex: 1,
             }}
           >
             Recent
           </Button>
           <Button
-            variant={filter === 'all' ? 'contained' : 'outlined'}
-            onClick={() => setFilter('all')}
-            startIcon={<PeopleOutline />}
+            variant={view === 'groups' ? 'contained' : 'outlined'}
+            onClick={() => setView('groups')}
+            startIcon={<GroupsIcon />}
             sx={{
-              backgroundColor: filter === 'all' 
+              backgroundColor: view === 'groups' 
                 ? theme.palette.primary.main 
                 : 'transparent',
-              color: filter === 'all' 
+              color: view === 'groups' 
                 ? '#fff' 
                 : theme.palette.primary.main,
               border: `1px solid ${theme.palette.primary.main}`,
@@ -266,9 +423,33 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
               },
               fontSize: '0.8rem',
               padding: '4px 8px',
+              flex: 1,
             }}
           >
-            All Users
+            Groups
+          </Button>
+          <Button
+            variant={view === 'all' ? 'contained' : 'outlined'}
+            onClick={() => setView('all')}
+            startIcon={<PeopleOutline />}
+            sx={{
+              backgroundColor: view === 'all' 
+                ? theme.palette.primary.main 
+                : 'transparent',
+              color: view === 'all' 
+                ? '#fff' 
+                : theme.palette.primary.main,
+              border: `1px solid ${theme.palette.primary.main}`,
+              '&:hover': {
+                backgroundColor: theme.palette.primary.dark,
+                color: '#fff',
+              },
+              fontSize: '0.8rem',
+              padding: '4px 8px',
+              flex: 1,
+            }}
+          >
+            All
           </Button>
         </ButtonGroup>
       </Box>
@@ -293,121 +474,184 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
           borderRadius: '4px',
         },
       }}>
-        {filteredUsers.map((user) => (
-          <ListItem
-            key={user.userId}
-            button
-            selected={user.userId === activeChatUserId}
-            onClick={() => selectChatUser(user)}
-            sx={{
-              mb: 0.5,
-              borderRadius: 1,
-              mx: 1,
-              width: 'auto', // Prevent item from stretching
-              minWidth: 0, // Allow content to shrink if needed
-              '&.Mui-selected': {
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(173, 73, 225, 0.2)'
-                  : 'rgba(173, 73, 225, 0.1)',
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark'
-                    ? 'rgba(173, 73, 225, 0.3)'
-                    : 'rgba(173, 73, 225, 0.2)',
-                },
-              },
-              '&:hover': {
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(255, 255, 255, 0.05)'
-                  : 'rgba(0, 0, 0, 0.04)',
-              },
-            }}
-          >
-            <Box sx={{ position: 'relative', mr: 2, flexShrink: 0 }}>
-              <Avatar src={user.profileImageUrl} />
-              <Box
-                sx={{
-                  position: 'absolute',
-                  bottom: 0,
-                  right: 0,
-                  width: 12,
-                  height: 12,
-                  backgroundColor: 'transparent',
-                  borderRadius: '50%',
-                  border: `2px solid ${theme.palette.background.paper}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  '& .MuiSvgIcon-root': {
-                    width: '100%',
-                    height: '100%',
-                  }
-                }}
-              >
-                {getStatusIcon(userStatuses[user.userId])}
-              </Box>
-            </Box>
-            <ListItemText
-              primary={
-                <Typography 
-                  sx={{ 
-                    fontWeight: unreadMessages[user.userId]?.hasUnread && user.userId !== activeChatUserId ? 'bold' : 'normal',
-                    fontSize: '0.9rem',
-                    color: theme.palette.text.primary,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {user.username}
-                </Typography>
-              }
-              secondary={
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    fontSize: '0.8rem',
-                    color: theme.palette.text.secondary,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }} 
-                  noWrap
-                >
-                  {lastMessages[user.userId] 
-                    ? lastMessages[user.userId].type === 'image'
-                      ? `${lastMessages[user.userId].senderId === currentUser.uid ? 'You' : user.username} sent a photo`
-                      : truncateMessage(
-                          lastMessages[user.userId].senderId === currentUser.uid 
-                            ? lastMessages[user.userId].messageOG 
-                            : lastMessages[user.userId].message, 
-                          20
-                        ) 
-                    : user.email}
-                </Typography>
-              }
+        {view === 'groups' && (
+          <Box sx={{ 
+            p: 2, 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            alignItems: 'center',
+            borderBottom: '1px solid',
+            borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+          }}>
+            <IconButton
+              onClick={() => setCreateGroupOpen(true)}
               sx={{
-                minWidth: 0, // Allow text to shrink
-                '& .MuiListItemText-primary, & .MuiListItemText-secondary': {
-                  width: '100%',
+                backgroundColor: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
+                color: '#fff',
+                '&:hover': { 
+                  backgroundColor: theme.palette.mode === 'dark' ? '#7A1CAC' : 'primary.dark' 
+                },
+                width: 40,
+                height: 40,
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
+        )}
+        {filteredUsers.map((item) => {
+          const isGroup = item.type === 'group' || !item.userId;
+          const itemId = isGroup ? `group_${item.id}` : item.userId;
+          const lastMessage = lastMessages[itemId];
+
+          return (
+            <ListItem
+              key={itemId}
+              button
+              selected={itemId === activeChatUserId}
+              onClick={() => isGroup ? handleGroupSelect(item) : handleUserSelect(item)}
+              sx={{
+                mb: 0.5,
+                borderRadius: 1,
+                mx: 1,
+                width: 'auto',
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(173, 73, 225, 0.2)'
+                    : 'rgba(173, 73, 225, 0.1)',
                 },
               }}
-            />
-            {unreadMessages[user.userId]?.unreadCount > 0 && (
-              <Badge
-                badgeContent={unreadMessages[user.userId].unreadCount}
-                color="primary"
+            >
+              <Box sx={{ position: 'relative', mr: 2 }}>
+                {isGroup ? (
+                  <AvatarGroup max={3} spacing="small" sx={{ width: 40, height: 40 }}>
+                    {Object.values(item.members || {}).slice(0, 3).map((member, index) => (
+                      <Avatar 
+                        key={index} 
+                        src={member.profileImageUrl}
+                        sx={{ width: 24, height: 24 }}
+                      />
+                    ))}
+                  </AvatarGroup>
+                ) : (
+                  <Avatar src={item.profileImageUrl}>
+                    {!item.profileImageUrl && item.username?.[0]}
+                  </Avatar>
+                )}
+                {!isGroup && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                      width: 12,
+                      height: 12,
+                      backgroundColor: 'transparent',
+                      borderRadius: '50%',
+                      border: '2px solid #7a49a5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {getStatusIcon(userStatuses[item.userId])}
+                  </Box>
+                )}
+              </Box>
+              <ListItemText
+                primary={item.username || item.name}
+                secondary={
+                  lastMessage ? (
+                    isGroup ? (
+                      `${lastMessage.senderName}: ${lastMessage.message}`
+                    ) : (
+                      lastMessage.type === 'image' ? 
+                        `${lastMessage.senderId === currentUser.uid ? 'You' : item.username} sent a photo` :
+                        truncateMessage(lastMessage.senderId === currentUser.uid ? lastMessage.messageOG : lastMessage.message)
+                    )
+                  ) : (
+                    isGroup ? `${Object.keys(item.members).length} members` : item.email
+                  )
+                }
                 sx={{
-                  position: 'absolute',
-                  right: 25,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  flexShrink: 0, // Prevent badge from shrinking
+                  minWidth: 0,
+                  '& .MuiListItemText-primary, & .MuiListItemText-secondary': {
+                    width: '100%',
+                  },
                 }}
               />
-            )}
-          </ListItem>
-        ))}
+              {unreadMessages[itemId]?.unreadCount > 0 && (
+                <Badge
+                  badgeContent={unreadMessages[itemId].unreadCount}
+                  color="primary"
+                  sx={{
+                    position: 'absolute',
+                    right: 25,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+            </ListItem>
+          );
+        })}
       </List>
+
+      {view === 'groups' && filteredUsers.length === 0 && (
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          height: '200px',
+          p: 2,
+          textAlign: 'center',
+          mt: 4,
+          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(41, 16, 74, 0.6)' : 'transparent',
+          borderRadius: 2,
+          mx: 2,
+        }}>
+          <GroupsIcon sx={{ 
+            fontSize: 48, 
+            color: theme.palette.mode === 'dark' ? '#8967B3' : 'text.secondary',
+            mb: 2,
+            opacity: 0.8,
+          }} />
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.secondary',
+              mb: 1,
+              fontWeight: 500,
+            }}
+          >
+            No group chats yet
+          </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateGroupOpen(true)}
+            sx={{ 
+              mt: 2,
+              borderColor: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
+              color: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
+              '&:hover': {
+                borderColor: theme.palette.mode === 'dark' ? '#AD49E1' : 'primary.dark',
+                backgroundColor: theme.palette.mode === 'dark' 
+                  ? 'rgba(173, 73, 225, 0.08)'
+                  : 'rgba(122, 28, 172, 0.04)',
+              },
+              textTransform: 'none',
+              borderRadius: '20px',
+              px: 3,
+              py: 1,
+            }}
+          >
+            Create New Group
+          </Button>
+        </Box>
+      )}
 
       <Box sx={{ 
         borderTop: '1px solid',
@@ -416,6 +660,13 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
       }}>
         <UserProfile currentUser={currentUser} handleLogout={handleLogout} />
       </Box>
+
+      <CreateGroupDialog
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        currentUser={currentUser}
+        users={users}
+      />
     </Box>
   );
 };

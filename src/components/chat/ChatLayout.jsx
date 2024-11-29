@@ -2,11 +2,23 @@ import React, { useState } from 'react';
 import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import Sidebar from './Sidebar';
 import ChatArea from './ChatArea';
+import GroupChatArea from './GroupChatArea';
 
 const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
   const [selectedChatUser, setSelectedChatUser] = useState(null);
+  const [selectedGroupChat, setSelectedGroupChat] = useState(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
+  const handleChatSelect = (chat) => {
+    if (chat.type === 'group') {
+      setSelectedGroupChat(chat);
+      setSelectedChatUser(null);
+    } else {
+      setSelectedChatUser(chat);
+      setSelectedGroupChat(null);
+    }
+  };
 
   return (
     <Box sx={{ 
@@ -27,9 +39,9 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
       }}>
         <Sidebar
           currentUser={currentUser}
-          selectChatUser={setSelectedChatUser}
+          selectChatUser={handleChatSelect}
           handleLogout={handleLogout}
-          activeChatUserId={selectedChatUser?.userId}
+          activeChatUserId={selectedChatUser?.userId || selectedGroupChat?.id}
         />
       </Box>
 
@@ -46,6 +58,12 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
             currentUser={currentUser}
             chatUser={selectedChatUser}
             onClose={() => setSelectedChatUser(null)}
+          />
+        ) : selectedGroupChat ? (
+          <GroupChatArea
+            currentUser={currentUser}
+            groupChat={selectedGroupChat}
+            onClose={() => setSelectedGroupChat(null)}
           />
         ) : !isMobile && (
           <Box sx={{ 

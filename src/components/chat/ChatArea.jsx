@@ -204,20 +204,15 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
 
     try {
       await set(newMessageRef, messageData);
-      const translatedMessage = await translateToLanguage(messageToSend, contactLanguage);
+      const translatedResult = await translateToLanguage(messageToSend, contactLanguage, false);
       
-      // Parse the translated message to extract the three variations
-      const variations = translatedMessage.split('\n').filter(line => line.trim() !== '');
-      const messageVar1 = variations[0]?.replace(/^\d+\.\s*/, '') || messageToSend;
-      const messageVar2 = variations[1]?.replace(/^\d+\.\s*/, '') || '';
-      const messageVar3 = variations[2]?.replace(/^\d+\.\s*/, '') || '';
-
+      // Now translatedResult contains all variations
       await set(newMessageRef, {
         ...messageData,
-        message: messageVar1,
-        messageVar1: messageVar1,
-        messageVar2: messageVar2,
-        messageVar3: messageVar3,
+        message: translatedResult.message,
+        messageVar1: translatedResult.messageVar1,
+        messageVar2: translatedResult.messageVar2,
+        messageVar3: translatedResult.messageVar3,
       });
     } catch (error) {
       console.error('Translation error:', error);
