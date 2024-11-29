@@ -32,10 +32,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
     const statusUnsubscribe = onValue(statusRef, (snapshot) => {
       const statuses = snapshot.val();
       if (statuses) {
-        setUserStatuses(prevStatuses => ({
-          ...prevStatuses,
-          ...statuses
-        }));
+        setUserStatuses(statuses);
       }
     });
 
@@ -283,7 +280,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                   right: 0,
                   width: 12,
                   height: 12,
-                  backgroundColor: user.status === 'online' ? '#66BB6A' : '#747f8d',
+                  backgroundColor: userStatuses[user.userId] === 'online' ? '#66BB6A' : '#747f8d',
                   borderRadius: '50%',
                   border: `2px solid ${theme.palette.background.paper}`,
                 }}
