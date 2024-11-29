@@ -71,7 +71,9 @@ const CreateGroupDialog = ({ open, onClose, currentUser, users }) => {
         sx: {
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
-            : 'background.paper',
+            : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
         }
       }}
     >
@@ -105,13 +107,49 @@ const CreateGroupDialog = ({ open, onClose, currentUser, users }) => {
             />
           ))}
         </Box>
-        <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+        <List sx={{ 
+          maxHeight: 300, 
+          overflow: 'auto',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: theme.palette.mode === 'dark' 
+              ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+              : '#888',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #8967B3 0%, #E3B8B1 100%)'
+              : '#555',
+          },
+          scrollbarWidth: 'thin',
+          scrollbarColor: theme.palette.mode === 'dark'
+            ? '#845162 #29104A'
+            : '#888 #f1f1f1',
+        }}>
           {filteredUsers.map((user) => (
             <ListItem
               key={user.userId}
               button
               onClick={() => handleUserSelect(user)}
               selected={selectedUsers.some(u => u.userId === user.userId)}
+              sx={{
+                '&.Mui-selected': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? 'rgba(173, 73, 225, 0.15)'
+                    : 'rgba(0, 0, 0, 0.08)',
+                },
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? 'rgba(173, 73, 225, 0.08)'
+                    : 'rgba(0, 0, 0, 0.04)',
+                },
+              }}
             >
               <ListItemAvatar>
                 <Avatar src={user.profileImageUrl} />

@@ -106,15 +106,56 @@ const UserSettings = ({
         );
       case 'Language':
         return (
-          <Box sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Language Settings</Typography>
-            <List>
+          <Box sx={{ 
+            height: '100%',  // Take full height
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden' // Hide outer scrollbar
+          }}>
+            <Typography variant="h6" sx={{ p: 3, pb: 2 }}>Language Settings</Typography>
+            <List sx={{
+              flex: 1,  // Take remaining space
+              overflow: 'auto',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: theme.palette.mode === 'dark' 
+                  ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+                  : '#888',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: theme.palette.mode === 'dark'
+                  ? 'linear-gradient(180deg, #8967B3 0%, #E3B8B1 100%)'
+                  : '#555',
+              },
+              scrollbarWidth: 'thin',
+              scrollbarColor: theme.palette.mode === 'dark'
+                ? '#845162 #29104A'
+                : '#888 #f1f1f1',
+            }}>
               {languages.map((language) => (
                 <ListItem
                   key={language.label}
                   button
                   selected={userData.language === language.label}
                   onClick={() => handleLanguageSelect(language)}
+                  sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(173, 73, 225, 0.15)'
+                        : 'rgba(0, 0, 0, 0.08)',
+                    },
+                    '&:hover': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(173, 73, 225, 0.08)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                    },
+                  }}
                 >
                   <ListItemText primary={language.label} />
                 </ListItem>
@@ -143,8 +184,10 @@ const UserSettings = ({
           m: 0,
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(135deg, #150016 0%, #29104A 100%)'
-            : 'background.paper',
-          color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
+            : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+          color: theme.palette.mode === 'dark' ? '#E3B8B1' : '#000',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
         }
       }}
     >
@@ -155,10 +198,33 @@ const UserSettings = ({
             width: 240,
             background: theme.palette.mode === 'dark'
               ? 'linear-gradient(180deg, #29104A 0%, #522C5D 100%)'
-              : 'background.default',
+              : 'linear-gradient(180deg, #FFE1FF, #E4B1F0)',
             borderRight: '1px solid',
-            borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
-            overflow: 'auto',
+            borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'rgba(255, 255, 255, 0.3)',
+            overflow: 'hidden',
+            overflowY: 'auto',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+              height: 0,
+            },
+            '&::-webkit-scrollbar-track': {
+              background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: theme.palette.mode === 'dark' 
+                ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+                : '#888',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb:hover': {
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(180deg, #8967B3 0%, #E3B8B1 100%)'
+                : '#555',
+            },
+            scrollbarWidth: 'thin',
+            scrollbarColor: theme.palette.mode === 'dark'
+              ? '#845162 #29104A'
+              : '#888 #f1f1f1',
           }}
         >
           <List>
@@ -191,10 +257,12 @@ const UserSettings = ({
         {/* Settings Content */}
         <Box sx={{ 
           flexGrow: 1, 
-          overflow: 'auto', 
+          overflow: 'hidden',  // Changed from 'auto' to 'hidden'
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)'
             : 'background.paper',
+          display: 'flex',
+          flexDirection: 'column'
         }}>
           <Box sx={{ 
             display: 'flex', 
@@ -220,7 +288,12 @@ const UserSettings = ({
               <CloseIcon />
             </IconButton>
           </Box>
-          {renderSettingsContent()}
+          <Box sx={{ 
+            flex: 1,
+            overflow: 'hidden'  // Hide scrollbar for content container
+          }}>
+            {renderSettingsContent()}
+          </Box>
         </Box>
       </Box>
     </Dialog>

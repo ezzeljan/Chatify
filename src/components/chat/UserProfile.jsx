@@ -197,6 +197,11 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
       // Cancel the onDisconnect operation
       await onDisconnect(userStatusRef).cancel();
       
+      // Reset theme to light mode if currently in dark mode
+      if (darkMode) {
+        toggleDarkMode();
+      }
+      
       // Call the parent handleLogout function
       await parentHandleLogout();
     } catch (error) {
@@ -332,21 +337,24 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
         alignItems: isMobile ? 'flex-start' : 'center',
         justifyContent: 'space-between',
         p: 1.5,
-        height: '80px',
+        minHeight: isMobile ? '120px' : '80px',
+        height: 'auto',
         borderRadius: '5px',
         background: theme.palette.mode === 'dark'
           ? 'linear-gradient(135deg, #522C5D 0%, #845162 100%)'
-          : '#7a49a5',
-        color: '#fff',
-        borderTop: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : '#23272A',
+          : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+        color: theme.palette.mode === 'dark' ? '#fff' : '#000',
+        borderTop: '1px solid rgba(255, 255, 255, 0.2)',
+        backdropFilter: 'blur(10px)',
+        gap: isMobile ? 2 : 0,
       }}>
         <Box sx={{ 
           display: 'flex', 
           alignItems: 'center', 
           width: isMobile ? '100%' : 'auto',
-          marginBottom: isMobile ? 2 : 0,
-          maxWidth: isMobile ? '100%' : 'calc(100% - 120px)', // Adjusted width to accommodate new icon
+          marginBottom: isMobile ? 1 : 0,
+          maxWidth: isMobile ? '100%' : 'calc(100% - 120px)',
+          flexWrap: 'wrap',
         }}>
           <Box sx={{ position: 'relative', mr: 2 }}>
             <input
@@ -359,7 +367,13 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
             <label htmlFor="avatar-upload">
               <Avatar 
                 src={userData.profileImageUrl}
-                sx={{ width: 40, height: 40, cursor: 'pointer' }}
+                sx={{ 
+                  width: isMobile ? 32 : 40,
+                  height: isMobile ? 32 : 40,
+                  cursor: 'pointer',
+                  border: '2px solid',
+                  borderColor: theme.palette.mode === 'dark' ? '#7a49a5' : '#fff',
+                }}
               />
             </label>
             <Box
@@ -372,7 +386,8 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
                 height: 12,
                 backgroundColor: 'transparent',
                 borderRadius: '50%',
-                border: '2px solid #7a49a5',
+                border: '2px solid',
+                borderColor: theme.palette.mode === 'dark' ? '#7a49a5' : '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -389,7 +404,7 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
               {getStatusIcon(userData.status)}
             </Box>
           </Box>
-          <Box sx={{ flexGrow: 1, minWidth: 0 }}> {/* Add minWidth: 0 to allow text truncation */}
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
             {editingUsername ? (
               <TextField
                 value={newUsername}
@@ -401,22 +416,30 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
                 size="small"
                 autoFocus
                 sx={{
-                  input: { color: '#fff' },
+                  input: { 
+                    color: theme.palette.mode === 'dark' ? '#fff' : '#000',
+                    padding: '4px 8px',
+                  },
                   maxWidth: '100%',
+                  '& .MuiOutlinedInput-root': {
+                    fontSize: isMobile ? '0.875rem' : '1rem',
+                  }
                 }}
               />
             ) : (
               <Typography
-                variant="body1"
+                variant={isMobile ? "body2" : "body1"}
                 sx={{ 
                   fontWeight: '500', 
                   cursor: 'pointer',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  color: theme.palette.mode === 'dark' ? '#fff' : '#000',
+                  fontSize: isMobile ? '0.875rem' : '1rem',
                 }}
                 onClick={handleUsernameDoubleClick}
-                title={userData.username} // Show full username on hover
+                title={userData.username}
               >
                 {truncatedUsername}
               </Typography>
@@ -424,15 +447,16 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
             <Typography
               variant="caption"
               sx={{ 
-                color: '#b9bbbe', 
                 cursor: 'pointer',
                 display: 'block',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                color: theme.palette.mode === 'dark' ? '#b9bbbe' : '#4a4a4a',
+                fontWeight: 500,
               }}
               onClick={handleLanguageDoubleClick}
-              title={userData.language || currentUser.email} // Show full email/language on hover
+              title={userData.language || currentUser.email}
             >
               {userData.language || truncatedEmail}
             </Typography>
@@ -452,6 +476,17 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
             vertical: 'bottom',
             horizontal: 'center',
           }}
+          PaperProps={{
+            sx: {
+              background: theme.palette.mode === 'dark'
+                ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
+                : 'background.paper',
+              borderRadius: '8px',
+              boxShadow: theme.palette.mode === 'dark'
+                ? '0 4px 20px rgba(0, 0, 0, 0.5)'
+                : '0 4px 20px rgba(0, 0, 0, 0.1)',
+            }
+          }}
         >
           <Box sx={{ p: 2, minWidth: 250 }}>
             <TextField 
@@ -459,14 +494,67 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
               variant='outlined' 
               size='small' 
               fullWidth 
-              sx={{ mb: 1 }} 
+              sx={{ 
+                mb: 1,
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? 'rgba(82, 44, 93, 0.3)' 
+                    : 'background.paper',
+                  '& fieldset': {
+                    borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.mode === 'dark' ? '#845162' : 'primary.main',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
+                },
+              }}
               value={searchTerm} 
               onChange={handleSearchChange}
             />
-            <List sx={{ maxHeight: 200, overflow: 'auto', border: '1px solid #ccc', borderRadius: '4px' }}>
+            <List sx={{ 
+              maxHeight: 200, 
+              overflow: 'auto',
+              border: '1px solid',
+              borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+              borderRadius: '4px',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: theme.palette.mode === 'dark' 
+                  ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+                  : '#888',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb:hover': {
+                background: theme.palette.mode === 'dark'
+                  ? 'linear-gradient(180deg, #8967B3 0%, #E3B8B1 100%)'
+                  : '#555',
+              },
+              scrollbarWidth: 'thin',
+              scrollbarColor: theme.palette.mode === 'dark'
+                ? '#845162 #29104A'
+                : '#888 #f1f1f1',
+            }}>
               {filteredLanguages.map((language) => (
                 <ListItem key={language.label} disablePadding>
-                  <ListItemButton onClick={() => handleLanguageSelect(language)}>
+                  <ListItemButton 
+                    onClick={() => handleLanguageSelect(language)}
+                    sx={{
+                      color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
+                      '&:hover': {
+                        backgroundColor: theme.palette.mode === 'dark' 
+                          ? 'rgba(173, 73, 225, 0.08)'
+                          : 'rgba(0, 0, 0, 0.04)',
+                      },
+                    }}
+                  >
                     {language.label}
                   </ListItemButton>
                 </ListItem>
@@ -520,25 +608,42 @@ const UserProfile = ({ currentUser, handleLogout: parentHandleLogout }) => {
           display: 'flex', 
           alignItems: 'center',
           width: isMobile ? '100%' : 'auto',
-          justifyContent: isMobile ? 'flex-end' : 'flex-start',
-          marginTop: isMobile ? 2 : 0,
-          flexShrink: 0, // Prevent icons from shrinking
+          justifyContent: isMobile ? 'center' : 'flex-start',
+          marginTop: isMobile ? 1 : 0,
+          flexShrink: 0,
+          gap: 1,
         }}>
           <IconButton 
             sx={{ 
-              color: '#b9bbbe',
+              color: theme.palette.mode === 'dark' ? '#b9bbbe' : '#4a4a4a',
               '&:hover': {
-                color: '#fff',
+                color: theme.palette.mode === 'dark' ? '#fff' : '#000',
               },
             }} 
             onClick={toggleDarkMode}
           >
             {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
           </IconButton>
-          <IconButton sx={{ color: '#b9bbbe' }} onClick={handleLogout}>
+          <IconButton 
+            sx={{ 
+              color: theme.palette.mode === 'dark' ? '#b9bbbe' : '#4a4a4a',
+              '&:hover': {
+                color: theme.palette.mode === 'dark' ? '#fff' : '#000',
+              },
+            }} 
+            onClick={handleLogout}
+          >
             <LogoutIcon />
           </IconButton>
-          <IconButton sx={{ color: '#b9bbbe' }} onClick={handleSettingsOpen}>
+          <IconButton 
+            sx={{ 
+              color: theme.palette.mode === 'dark' ? '#b9bbbe' : '#4a4a4a',
+              '&:hover': {
+                color: theme.palette.mode === 'dark' ? '#fff' : '#000',
+              },
+            }} 
+            onClick={handleSettingsOpen}
+          >
             <SettingsIcon />
           </IconButton>
         </Box>

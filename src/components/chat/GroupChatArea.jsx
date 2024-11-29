@@ -3,7 +3,8 @@ import {
   Box, Typography, Avatar, IconButton, TextField, CircularProgress,
   Menu, MenuItem, Tooltip, AvatarGroup, Dialog, DialogTitle, 
   DialogContent, List, ListItem, ListItemAvatar, ListItemText,
-  useTheme, Snackbar, Alert
+  useTheme, Snackbar, Alert, Chip, Button, DialogActions,
+  useMediaQuery
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CloseIcon from '@mui/icons-material/Close';
@@ -11,13 +12,18 @@ import InfoIcon from '@mui/icons-material/Info';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import AddReactionIcon from '@mui/icons-material/AddReaction';
+import ReplyIcon from '@mui/icons-material/Reply';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { getDatabase, ref, onValue, push, set, serverTimestamp, off, remove, update } from "firebase/database";
 import { translateToMultipleLanguages } from '../../services/geminiTranslator';
 import GroupInfoDialog from './GroupInfoDialog';
 import { debounce, throttle } from 'lodash';
+import MessageReactions from './MessageReactions';
 
 const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [members, setMembers] = useState({});
@@ -33,6 +39,10 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   const [filteredAvailableUsers, setFilteredAvailableUsers] = useState([]);
   const [currentGroupChat, setCurrentGroupChat] = useState(groupChat);
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [reactionAnchorEl, setReactionAnchorEl] = useState(null);
+  const [selectedMessageForReaction, setSelectedMessageForReaction] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   // Debounce the hover effects
   const debouncedSetHoveredMessageId = useCallback(
@@ -178,7 +188,6 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
     const newMessageRef = push(messagesRef);
 
     try {
-      // Only translate if there are target languages
       const translations = targetLanguages.length > 0 
         ? await translateToMultipleLanguages(messageToSend, targetLanguages, true)
         : {};
@@ -190,10 +199,18 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
         message: messageToSend,
         translations,
         timestamp: serverTimestamp(),
-        originalLanguage: userLanguages[currentUser.uid] || 'en'
+        originalLanguage: userLanguages[currentUser.uid] || 'en',
+        ...(replyingTo && {
+          replyTo: {
+            messageId: replyingTo.messageId,
+            senderId: replyingTo.senderId,
+            message: replyingTo.message,
+          },
+        }),
       };
 
       await set(newMessageRef, messageData);
+      setReplyingTo(null);
     } catch (error) {
       console.error('Error sending message:', error);
       setNotification({
@@ -287,6 +304,14 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
     debouncedSetHoveredMessageId(null);
   }, [debouncedSetHoveredMessageId]);
 
+  const handleUserSelect = (user) => {
+    if (selectedUsers.find(u => u.userId === user.userId)) {
+      setSelectedUsers(selectedUsers.filter(u => u.userId !== user.userId));
+    } else {
+      setSelectedUsers([...selectedUsers, user]);
+    }
+  };
+
   const handleAddMembers = async (selectedUsers) => {
     try {
       const db = getDatabase();
@@ -301,7 +326,8 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
       
       await update(ref(db), updates);
       setAddMemberDialogOpen(false);
-      setMembersDialogOpen(false);
+      setSelectedUsers([]); // Clear selected users after successful addition
+      setMemberSearchQuery(''); // Clear search query
       
       // Notify parent component of the update
       if (onGroupUpdate) {
@@ -327,128 +353,215 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
     }
   };
 
+  const handleReactionClick = useCallback((messageId, anchorElement) => {
+    const message = messages.find(msg => msg.messageId === messageId);
+    if (message) {
+      setSelectedMessageForReaction(message);
+      setReactionAnchorEl(anchorElement);
+    }
+  }, [messages]);
+
+  const handleReplyClick = useCallback((message) => {
+    setReplyingTo(message);
+  }, []);
+
   // Memoize the message list component
   const MessageList = memo(({ messages, currentUser, members, userLanguages, hoveredMessageId, onMouseEnter, onMouseLeave }) => {
-    return messages.map((message) => (
-      <Box
-        key={message.messageId}
-        sx={{
-          display: 'flex',
-          justifyContent: message.senderId === currentUser.uid ? 'flex-end' : 'flex-start',
-          mb: 2,
-          position: 'relative',
-        }}
-        onMouseEnter={() => onMouseEnter(message.messageId)}
-        onMouseLeave={onMouseLeave}
-      >
-        {message.senderId !== currentUser.uid && (
-          <Box sx={{ position: 'relative', mr: 2 }}>
-            <Avatar
-              src={members[message.senderId]?.profileImageUrl}
-              sx={{ width: 32, height: 32 }}
-            />
-          </Box>
-        )}
+    return messages.map((message, index) => {
+      // Check if this message is part of a consecutive group
+      const isFirstInGroup = index === 0 || messages[index - 1].senderId !== message.senderId;
+      const isLastInGroup = index === messages.length - 1 || messages[index + 1].senderId !== message.senderId;
+
+      return (
         <Box
+          key={message.messageId}
           sx={{
-            maxWidth: { xs: 'calc(100% - 48px)', sm: 'calc(60% - 48px)', md: 'calc(50% - 48px)' },
-            minWidth: '50px',
-            position: 'relative'
+            display: 'flex',
+            justifyContent: message.senderId === currentUser.uid ? 'flex-end' : 'flex-start',
+            mb: isLastInGroup ? 2 : 0.5, // Reduce margin between grouped messages
+            position: 'relative',
           }}
+          onMouseEnter={() => onMouseEnter(message.messageId)}
+          onMouseLeave={onMouseLeave}
         >
           {message.senderId !== currentUser.uid && (
-            <Typography 
-              variant="caption" 
-              sx={{ 
-                color: theme.palette.text.secondary,
-                ml: 1,
-                mb: 0.5,
-                display: 'block'
-              }}
-            >
-              {members[message.senderId]?.username}
-            </Typography>
+            <Box sx={{ position: 'relative', mr: 2, width: 32 }}>
+              {/* Only show avatar for first message in group */}
+              {isFirstInGroup && (
+                <Avatar
+                  src={members[message.senderId]?.profileImageUrl}
+                  sx={{ width: 32, height: 32 }}
+                />
+              )}
+            </Box>
           )}
           <Box
             sx={{
-              px: 2,
-              py: 1.5,
-              backgroundColor: message.senderId === currentUser.uid
-                ? theme.palette.mode === 'dark'
-                  ? 'rgba(82, 44, 93, 0.85)'
-                  : theme.palette.primary.main
-                : theme.palette.mode === 'dark'
-                  ? 'rgba(132, 81, 98, 0.75)'
-                  : '#E5D9F2',
-              color: message.senderId === currentUser.uid 
-                ? '#fff' 
-                : theme.palette.text.primary,
-              borderRadius: '16px',
-              backdropFilter: 'blur(8px)',
-              WebkitBackdropFilter: 'blur(8px)',
-              boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-              position: 'relative',
-              wordWrap: 'break-word',
-              maxWidth: '100%',
-              display: 'inline-block',
-              transition: 'all 0.3s ease-in-out',
-              overflowWrap: 'break-word',
-              wordBreak: 'break-word',
-              hyphens: 'auto',
-              '&:before': message.senderId !== currentUser.uid ? {
-                content: '""',
-                position: 'absolute',
-                bottom: 8,
-                left: -6,
-                width: 0,
-                height: 0,
-                borderTop: '8px solid transparent',
-                borderRight: theme.palette.mode === 'dark' 
-                  ? `8px solid rgba(132, 81, 98, 0.75)`
-                  : `8px solid #E5D9F2`,
-                borderBottom: '8px solid transparent',
-              } : {
-                content: '""',
-                position: 'absolute',
-                bottom: -8,
-                right: 10,
-                width: 0,
-                height: 0,
-                borderTop: theme.palette.mode === 'dark'
-                  ? `9px solid rgba(82, 44, 93, 0.85)`
-                  : `9px solid ${theme.palette.primary.main}`,
-                borderLeft: '8px solid transparent',
-                borderRight: '8px solid transparent',
-              },
+              maxWidth: { xs: 'calc(100% - 48px)', sm: 'calc(60% - 48px)', md: 'calc(50% - 48px)' },
+              minWidth: '50px',
+              position: 'relative'
             }}
           >
-            <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
-              {getMessageDisplay(message)}
-            </Typography>
+            {message.senderId !== currentUser.uid && isFirstInGroup && (
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  color: theme.palette.text.secondary,
+                  ml: 1,
+                  mb: 0.5,
+                  display: 'block'
+                }}
+              >
+                {members[message.senderId]?.username}
+              </Typography>
+            )}
+            <Box
+              id={`message-${message.messageId}`}
+              sx={{
+                px: 2,
+                py: 1.5,
+                backgroundColor: message.senderId === currentUser.uid
+                  ? theme.palette.mode === 'dark'
+                    ? 'rgba(82, 44, 93, 0.85)'
+                    : theme.palette.primary.main
+                  : theme.palette.mode === 'dark'
+                    ? 'rgba(132, 81, 98, 0.75)'
+                    : '#E5D9F2',
+                color: message.senderId === currentUser.uid 
+                  ? '#fff' 
+                  : theme.palette.text.primary,
+                borderRadius: message.senderId === currentUser.uid
+                  ? isFirstInGroup && isLastInGroup ? '16px' 
+                    : isFirstInGroup ? '16px 16px 4px 16px'
+                    : isLastInGroup ? '16px 4px 16px 16px'
+                    : '16px 4px 4px 16px'
+                  : isFirstInGroup && isLastInGroup ? '16px'
+                    : isFirstInGroup ? '16px 16px 16px 4px'
+                    : isLastInGroup ? '4px 16px 16px 16px'
+                    : '4px 16px 16px 4px',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
+                position: 'relative',
+                wordWrap: 'break-word',
+                maxWidth: '100%',
+                display: 'inline-block',
+                transition: 'all 0.3s ease-in-out',
+                overflowWrap: 'break-word',
+                wordBreak: 'break-word',
+                hyphens: 'auto',
+                '&:before': isFirstInGroup && message.senderId !== currentUser.uid ? {
+                  content: '""',
+                  position: 'absolute',
+                  bottom: 8,
+                  left: -6,
+                  width: 0,
+                  height: 0,
+                  borderTop: '8px solid transparent',
+                  borderRight: theme.palette.mode === 'dark' 
+                    ? `8px solid rgba(132, 81, 98, 0.75)`
+                    : `8px solid #E5D9F2`,
+                  borderBottom: '8px solid transparent',
+                } : {},
+              }}
+            >
+              {message.replyTo && (
+                <Box
+                  sx={{
+                    borderLeft: '2px solid',
+                    borderColor: theme.palette.primary.main,
+                    pl: 1,
+                    mb: 1,
+                    opacity: 0.8,
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    Replying to {members[message.replyTo.senderId]?.username}
+                  </Typography>
+                  <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                    {message.replyTo.message.substring(0, 50)}
+                    {message.replyTo.message.length > 50 ? '...' : ''}
+                  </Typography>
+                </Box>
+              )}
+
+              <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+                {getMessageDisplay(message)}
+              </Typography>
+
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: '50%',
+                  [message.senderId === currentUser.uid ? 'left' : 'right']: '-56px',
+                  transform: 'translateY(-50%)',
+                  opacity: hoveredMessageId === message.messageId ? 1 : 0,
+                  transition: 'opacity 0.2s',
+                  display: 'flex',
+                  gap: '4px',
+                  zIndex: 2,
+                }}
+              >
+                <IconButton
+                  size="small"
+                  onClick={() => handleReplyClick(message)}
+                  sx={{
+                    color: theme.palette.mode === 'dark' ? '#fff' : 'inherit',
+                    '&:hover': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(255, 255, 255, 0.1)' 
+                        : 'rgba(0, 0, 0, 0.04)',
+                    },
+                  }}
+                >
+                  <ReplyIcon fontSize="small" />
+                </IconButton>
+
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    const buttonRect = e.currentTarget.getBoundingClientRect();
+                    const anchorElement = {
+                      clientWidth: buttonRect.width,
+                      clientHeight: buttonRect.height,
+                      getBoundingClientRect: () => buttonRect,
+                    };
+                    handleReactionClick(message.messageId, anchorElement);
+                  }}
+                  sx={{
+                    color: theme.palette.mode === 'dark' ? '#fff' : 'inherit',
+                    '&:hover': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(255, 255, 255, 0.1)' 
+                        : 'rgba(0, 0, 0, 0.04)',
+                    },
+                  }}
+                >
+                  <AddReactionIcon fontSize="small" />
+                </IconButton>
+              </Box>
+
+              <MessageReactions
+                messageReactions={message.reactions ? Object.values(message.reactions) : []}
+                messageId={message.messageId}
+                currentUser={currentUser}
+                groupId={groupChat.id}
+                isCurrentUserMessage={message.senderId === currentUser.uid}
+                reactionAnchorEl={message.messageId === selectedMessageForReaction?.messageId ? reactionAnchorEl : null}
+                selectedMessageForReaction={selectedMessageForReaction}
+                onCloseReactionMenu={() => {
+                  setSelectedMessageForReaction(null);
+                  setReactionAnchorEl(null);
+                }}
+                onReactionClick={handleReactionClick}
+              />
+            </Box>
           </Box>
-          <Typography 
-            variant="caption" 
-            sx={{ 
-              position: 'absolute',
-              [message.senderId === currentUser.uid ? 'left' : 'right']: '-90px',
-              bottom: 0,
-              whiteSpace: 'nowrap',
-              color: 'rgba(0, 0, 0, 0.7)',
-              opacity: hoveredMessageId === message.messageId ? 1 : 0,
-              visibility: hoveredMessageId === message.messageId ? 'visible' : 'hidden',
-              transition: 'opacity 0.3s ease-in-out, visibility 0.3s ease-in-out',
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
-              fontSize: '0.75rem',
-            }}
-          >
-            {message.timestamp ? formatTimestamp(message.timestamp) : 'Sending...'}
-          </Typography>
         </Box>
-      </Box>
-    ));
+      );
+    });
   });
 
   return (
@@ -456,19 +569,30 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      bgcolor: theme.palette.mode === 'dark' ? '#150016' : 'background.paper',
+      bgcolor: theme.palette.mode === 'dark' 
+        ? '#150016' 
+        : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+      width: isMobile ? '100vw' : 'auto',
     }}>
       {/* Header */}
       <Box sx={{
         p: 2,
         display: 'flex',
         alignItems: 'center',
-        borderBottom: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
         background: theme.palette.mode === 'dark'
           ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
-          : '#ffffff',
+          : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+        backdropFilter: 'blur(10px)',
       }}>
+        {isMobile && (
+          <IconButton 
+            onClick={onClose} 
+            sx={{ mr: 1 }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
           <AvatarGroup max={3} sx={{ mr: 2 }}>
             {Object.values(members).map((member) => (
@@ -491,9 +615,11 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
           <IconButton onClick={handleLeaveGroup}>
             <ExitToAppIcon />
           </IconButton>
-          <IconButton onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
+          {!isMobile && (
+            <IconButton onClick={onClose}>
+              <CloseIcon />
+            </IconButton>
+          )}
         </Box>
       </Box>
 
@@ -506,7 +632,29 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
           p: 2,
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)'
-            : 'background.default',
+            : 'transparent',
+          backdropFilter: 'blur(5px)',
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-track': {
+            background: theme.palette.mode === 'dark' ? '#29104A' : '#f1f1f1',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: theme.palette.mode === 'dark' 
+              ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
+              : '#888',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: theme.palette.mode === 'dark'
+              ? 'linear-gradient(180deg, #8967B3 0%, #E3B8B1 100%)'
+              : '#555',
+          },
+          scrollbarWidth: 'thin',
+          scrollbarColor: theme.palette.mode === 'dark'
+            ? '#845162 #29104A'
+            : '#888 #f1f1f1',
         }}
       >
         <MessageList 
@@ -530,6 +678,35 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
           ? 'linear-gradient(135deg, #522C5D 0%, #29104A 100%)'
           : 'background.paper',
       }}>
+        {replyingTo && (
+          <Box
+            sx={{
+              mb: 1,
+              p: 1,
+              borderLeft: '2px solid',
+              borderColor: 'primary.main',
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(82, 44, 93, 0.3)' : 'rgba(0, 0, 0, 0.05)',
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Replying to {members[replyingTo.senderId]?.username}
+              </Typography>
+              <Typography variant="body2" sx={{ opacity: 0.7 }}>
+                {replyingTo.message.substring(0, 50)}
+                {replyingTo.message.length > 50 ? '...' : ''}
+              </Typography>
+            </Box>
+            <IconButton size="small" onClick={() => setReplyingTo(null)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        )}
+        
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
             fullWidth
@@ -567,7 +744,11 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
       {/* Add Member Dialog */}
       <Dialog
         open={addMemberDialogOpen}
-        onClose={() => setAddMemberDialogOpen(false)}
+        onClose={() => {
+          setAddMemberDialogOpen(false);
+          setSelectedUsers([]); // Clear selections when closing
+          setMemberSearchQuery('');
+        }}
         maxWidth="sm"
         fullWidth
         PaperProps={{
@@ -598,19 +779,27 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
             sx={{
               '& .MuiOutlinedInput-root': {
                 backgroundColor: theme.palette.mode === 'dark' ? 'rgba(82, 44, 93, 0.3)' : 'background.paper',
-                '&:hover': {
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(82, 44, 93, 0.4)' : 'background.paper',
-                },
-                '&.Mui-focused': {
-                  backgroundColor: theme.palette.mode === 'dark' ? 'rgba(82, 44, 93, 0.5)' : 'background.paper',
-                }
-              },
-              '& .MuiOutlinedInput-input': {
-                color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
-              },
+              }
             }}
           />
         </Box>
+        
+        {/* Selected Users Chips */}
+        <Box sx={{ p: 2, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          {selectedUsers.map((user) => (
+            <Chip
+              key={user.userId}
+              avatar={<Avatar src={user.profileImageUrl} />}
+              label={user.username}
+              onDelete={() => handleUserSelect(user)}
+              sx={{
+                backgroundColor: theme.palette.mode === 'dark' ? 'rgba(82, 44, 93, 0.5)' : 'primary.light',
+                color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'primary.contrastText',
+              }}
+            />
+          ))}
+        </Box>
+
         <DialogContent sx={{ p: 0 }}>
           <List sx={{
             maxHeight: '400px',
@@ -641,8 +830,14 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
                 <ListItem 
                   key={user.userId}
                   button
-                  onClick={() => handleAddMembers([user])}
+                  onClick={() => handleUserSelect(user)}
+                  selected={selectedUsers.some(u => u.userId === user.userId)}
                   sx={{
+                    '&.Mui-selected': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(173, 73, 225, 0.15)'
+                        : 'rgba(0, 0, 0, 0.08)',
+                    },
                     '&:hover': {
                       backgroundColor: theme.palette.mode === 'dark' 
                         ? 'rgba(173, 73, 225, 0.08)'
@@ -694,6 +889,37 @@ const GroupChatArea = ({ currentUser, groupChat, onClose, onGroupUpdate }) => {
             )}
           </List>
         </DialogContent>
+
+        {/* Add Dialog Actions */}
+        <DialogActions sx={{ 
+          p: 2, 
+          borderTop: '1px solid',
+          borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        }}>
+          <Button 
+            onClick={() => {
+              setAddMemberDialogOpen(false);
+              setSelectedUsers([]);
+              setMemberSearchQuery('');
+            }}
+            sx={{ color: theme.palette.mode === 'dark' ? '#8967B3' : 'inherit' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => handleAddMembers(selectedUsers)}
+            disabled={selectedUsers.length === 0}
+            variant="contained"
+            sx={{
+              bgcolor: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
+              '&:hover': {
+                bgcolor: theme.palette.mode === 'dark' ? '#9977C3' : 'primary.dark',
+              }
+            }}
+          >
+            Add Selected
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <Snackbar

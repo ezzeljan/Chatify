@@ -23,12 +23,11 @@ const UserInfoModal = ({ user, open, onClose }) => {
         sx: {
           borderRadius: '16px',
           boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
-          backdropFilter: 'blur(5px)',
-          border: '1px solid',
-          borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'rgba(255, 255, 255, 0.3)',
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(135deg, #150016 0%, #29104A 100%)'
-            : 'rgba(255, 255, 255, 0.8)',
+            : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
           width: '300px',
           margin: 'auto',
           overflow: 'visible',

@@ -2,8 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const apiKeys = [
   import.meta.env.GEMINI_API_KEY,
-  import.meta.env.GEMINI_API_KEY2,
-  import.meta.env.GEMINI_API_KEY3,
+  //import.meta.env.GEMINI_API_KEY2,
+  //import.meta.env.GEMINI_API_KEY3,
 ];
 
 let currentKeyIndex = 0;

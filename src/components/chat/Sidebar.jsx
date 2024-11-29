@@ -7,9 +7,9 @@ import { MessageOutlined, PeopleOutline } from '@mui/icons-material';
 import CircleIcon from '@mui/icons-material/Circle';
 import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import GroupsIcon from '@mui/icons-material/Groups';
 import AddIcon from '@mui/icons-material/Add';
 import CreateGroupDialog from './CreateGroupDialog';
+import Groups from '@mui/icons-material/Groups';
 
 const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }) => {
   const theme = useTheme();
@@ -24,6 +24,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   const [userStatuses, setUserStatuses] = useState({});
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [groups, setGroups] = useState([]);
+  const [clickedItemId, setClickedItemId] = useState(null);
 
   useEffect(() => {
     const db = getDatabase();
@@ -269,8 +270,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   };
 
   const handleUserSelect = (user) => {
-    // Clear unread messages for the selected user
     const userId = user.userId;
+    setClickedItemId(userId);
     if (userId) {
       setUnreadMessages(prev => ({
         ...prev,
@@ -281,8 +282,8 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
   };
 
   const handleGroupSelect = (group) => {
-    // Clear unread messages for the selected group
     const groupId = `group_${group.id}`;
+    setClickedItemId(groupId);
     setUnreadMessages(prev => ({
       ...prev,
       [groupId]: { hasUnread: false, unreadCount: 0 }
@@ -366,41 +367,66 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
       width: '100%',
       backgroundColor: theme.palette.mode === 'dark' 
         ? 'linear-gradient(180deg, #150016 0%, #29104A 100%)' 
-        : 'background.paper',
-      borderRight: '1px solid',
-      borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
+      borderRight: '1px solid rgba(255, 255, 255, 0.2)',
       display: 'flex',
       flexDirection: 'column',
+      backdropFilter: 'blur(10px)',
     }}>
       <Box sx={{ 
         p: 2,
-        borderBottom: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)' 
-          : '#ffffff',
+          : '#f5f5f5', // Light gray background
       }}>
         <SearchBar onSearch={handleSearch} />
-        <ButtonGroup fullWidth size="small" sx={{ mt: 1 }}>
+        <ButtonGroup 
+          fullWidth 
+          size="small" 
+          sx={{ 
+            mt: 1,
+            background: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#fff',
+            borderRadius: '20px',
+            padding: '2px',
+            border: 'none',
+            '& .MuiButton-root': {
+              border: 'none',
+              borderRadius: '18px !important',
+              textTransform: 'none',
+              fontWeight: 'normal',
+            }
+          }}
+        >
           <Button
             variant={view === 'recent' ? 'contained' : 'outlined'}
             onClick={() => setView('recent')}
             startIcon={<MessageOutlined />}
             sx={{
               backgroundColor: view === 'recent' 
-                ? theme.palette.primary.main 
+                ? theme.palette.mode === 'dark'
+                  ? '#AD49E1'
+                  : '#AD49E1'
                 : 'transparent',
-              color: view === 'recent' 
-                ? '#fff' 
-                : theme.palette.primary.main,
-              border: `1px solid ${theme.palette.primary.main}`,
+              color: theme.palette.mode === 'dark'
+                ? view === 'recent' 
+                  ? '#fff' 
+                  : 'rgba(255, 255, 255, 0.7)'
+                : view === 'recent' 
+                  ? '#fff' 
+                  : '#666',
+              border: 'none',
+              boxShadow: 'none',
               '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                color: '#fff',
+                backgroundColor: view === 'recent' 
+                  ? theme.palette.mode === 'dark'
+                    ? '#9A41C8'
+                    : '#AD49E1'
+                  : theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(0, 0, 0, 0.04)',
+                boxShadow: 'none',
               },
-              fontSize: '0.8rem',
-              padding: '4px 8px',
-              flex: 1,
             }}
           >
             Recent
@@ -408,22 +434,32 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
           <Button
             variant={view === 'groups' ? 'contained' : 'outlined'}
             onClick={() => setView('groups')}
-            startIcon={<GroupsIcon />}
+            startIcon={<Groups />}
             sx={{
               backgroundColor: view === 'groups' 
-                ? theme.palette.primary.main 
+                ? theme.palette.mode === 'dark'
+                  ? '#AD49E1'
+                  : '#AD49E1'
                 : 'transparent',
-              color: view === 'groups' 
-                ? '#fff' 
-                : theme.palette.primary.main,
-              border: `1px solid ${theme.palette.primary.main}`,
+              color: theme.palette.mode === 'dark'
+                ? view === 'groups' 
+                  ? '#fff' 
+                  : 'rgba(255, 255, 255, 0.7)'
+                : view === 'groups' 
+                  ? '#fff' 
+                  : '#666',
+              border: 'none',
+              boxShadow: 'none',
               '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                color: '#fff',
+                backgroundColor: view === 'groups' 
+                  ? theme.palette.mode === 'dark'
+                    ? '#9A41C8'
+                    : '#AD49E1'
+                  : theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(0, 0, 0, 0.04)',
+                boxShadow: 'none',
               },
-              fontSize: '0.8rem',
-              padding: '4px 8px',
-              flex: 1,
             }}
           >
             Groups
@@ -434,22 +470,32 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
             startIcon={<PeopleOutline />}
             sx={{
               backgroundColor: view === 'all' 
-                ? theme.palette.primary.main 
+                ? theme.palette.mode === 'dark'
+                  ? '#AD49E1'
+                  : '#AD49E1'
                 : 'transparent',
-              color: view === 'all' 
-                ? '#fff' 
-                : theme.palette.primary.main,
-              border: `1px solid ${theme.palette.primary.main}`,
+              color: theme.palette.mode === 'dark'
+                ? view === 'all' 
+                  ? '#fff' 
+                  : 'rgba(255, 255, 255, 0.7)'
+                : view === 'all' 
+                  ? '#fff' 
+                  : '#666',
+              border: 'none',
+              boxShadow: 'none',
               '&:hover': {
-                backgroundColor: theme.palette.primary.dark,
-                color: '#fff',
+                backgroundColor: view === 'all' 
+                  ? theme.palette.mode === 'dark'
+                    ? '#9A41C8'
+                    : '#AD49E1'
+                  : theme.palette.mode === 'dark'
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(0, 0, 0, 0.04)',
+                boxShadow: 'none',
               },
-              fontSize: '0.8rem',
-              padding: '4px 8px',
-              flex: 1,
             }}
           >
-            All
+            All Users
           </Button>
         </ButtonGroup>
       </Box>
@@ -515,11 +561,27 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                 borderRadius: 1,
                 mx: 1,
                 width: 'auto',
+                backgroundColor: clickedItemId === itemId ? (
+                  theme.palette.mode === 'dark'
+                    ? 'rgba(173, 73, 225, 0.35)'
+                    : 'rgba(173, 73, 225, 0.2)'
+                ) : 'transparent',
                 '&.Mui-selected': {
                   backgroundColor: theme.palette.mode === 'dark'
                     ? 'rgba(173, 73, 225, 0.2)'
                     : 'rgba(173, 73, 225, 0.1)',
+                  borderLeft: `4px solid ${theme.palette.primary.main}`,
+                  '&:hover': {
+                    backgroundColor: theme.palette.mode === 'dark'
+                      ? 'rgba(173, 73, 225, 0.3)'
+                      : 'rgba(173, 73, 225, 0.2)',
+                  }
                 },
+                '&:hover': {
+                  backgroundColor: theme.palette.mode === 'dark'
+                    ? 'rgba(173, 73, 225, 0.1)'
+                    : 'rgba(173, 73, 225, 0.05)',
+                }
               }}
             >
               <Box sx={{ position: 'relative', mr: 2 }}>
@@ -612,7 +674,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
           borderRadius: 2,
           mx: 2,
         }}>
-          <GroupsIcon sx={{ 
+          <Groups sx={{ 
             fontSize: 48, 
             color: theme.palette.mode === 'dark' ? '#8967B3' : 'text.secondary',
             mb: 2,

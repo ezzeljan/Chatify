@@ -30,32 +30,37 @@ const SearchBar = ({ onSearch }) => {
       sx={{
         display: 'flex',
         alignItems: 'center',
-        padding: '4px 8px',
-        borderRadius: '5px',
+        padding: '8px 12px',
+        borderRadius: '20px',
         backgroundColor: theme.palette.mode === 'dark' 
           ? 'rgba(255, 255, 255, 0.05)' 
-          : '#e8e8e8',
+          : '#fff',
         boxShadow: 'none',
         border: '1px solid',
         borderColor: theme.palette.mode === 'dark' 
           ? 'rgba(255, 255, 255, 0.1)' 
-          : 'transparent',
+          : 'rgba(0, 0, 0, 0.1)',
       }}
     >
       <SearchIcon sx={{ 
         color: theme.palette.mode === 'dark' 
           ? 'rgba(255, 255, 255, 0.7)' 
-          : '#888' 
+          : '#666',
+        transition: 'color 0.3s ease',
       }} />
       <InputBase
         placeholder="Find or start a chat"
         sx={{ 
           ml: 1, 
           flex: 1, 
-          color: theme.palette.text.primary,
+          color: theme.palette.mode === 'dark' 
+            ? '#fff' 
+            : 'rgba(0, 0, 0, 0.8)',
           '& ::placeholder': {
-            color: theme.palette.text.secondary,
-            opacity: theme.palette.mode === 'dark' ? 0.5 : 0.7,
+            color: theme.palette.mode === 'dark' 
+              ? 'rgba(255, 255, 255, 0.5)'
+              : 'rgba(0, 0, 0, 0.4)',
+            opacity: 1,
           },
         }}
         inputProps={{ 'aria-label': 'search messages or users' }}
@@ -71,7 +76,12 @@ const SearchBar = ({ onSearch }) => {
             padding: '4px',
             color: theme.palette.mode === 'dark' 
               ? 'rgba(255, 255, 255, 0.7)' 
-              : '#888',
+              : 'rgba(0, 0, 0, 0.6)',
+            '&:hover': {
+              backgroundColor: theme.palette.mode === 'dark'
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.04)',
+            },
           }}
         >
           <ClearIcon sx={{ fontSize: '1.2rem' }} />

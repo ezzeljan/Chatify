@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { 
   Dialog, DialogTitle, DialogContent, List, ListItem, 
   ListItemAvatar, ListItemText, Typography, Avatar, 
-  IconButton, Menu, MenuItem, useTheme
+  IconButton, Menu, MenuItem, useTheme, TextField,
+  Box
 } from '@mui/material';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { getDatabase, ref, remove, onValue, off } from "firebase/database";
+import EditIcon from '@mui/icons-material/Edit';
+import { getDatabase, ref, remove, onValue, off, update } from "firebase/database";
 
 const GroupInfoDialog = ({ 
   open, 
@@ -21,6 +23,8 @@ const GroupInfoDialog = ({
   const theme = useTheme();
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [newGroupName, setNewGroupName] = useState(currentGroupChat?.name || '');
 
   const handleMenuOpen = (event, member) => {
     setAnchorEl(event.currentTarget);
@@ -62,6 +66,33 @@ const GroupInfoDialog = ({
     }
   };
 
+  const handleEditName = () => {
+    setIsEditingName(true);
+    setNewGroupName(currentGroupChat.name);
+  };
+
+  const handleNameChange = async () => {
+    if (newGroupName.trim() && newGroupName !== currentGroupChat.name) {
+      try {
+        const db = getDatabase();
+        const groupRef = ref(db, `groups/${currentGroupChat.id}`);
+        await update(groupRef, { name: newGroupName.trim() });
+        
+        setNotification({
+          severity: 'success',
+          message: 'Group name updated successfully'
+        });
+      } catch (error) {
+        console.error('Error updating group name:', error);
+        setNotification({
+          severity: 'error',
+          message: 'Failed to update group name'
+        });
+      }
+    }
+    setIsEditingName(false);
+  };
+
   React.useEffect(() => {
     const db = getDatabase();
     const groupRef = ref(db, `groups/${currentGroupChat.id}`);
@@ -89,8 +120,10 @@ const GroupInfoDialog = ({
         sx: {
           background: theme.palette.mode === 'dark'
             ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
-            : 'background.paper',
+            : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
           borderRadius: 2,
+          backdropFilter: 'blur(10px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
         }
       }}
     >
@@ -104,10 +137,70 @@ const GroupInfoDialog = ({
         justifyContent: 'space-between',
         alignItems: 'center',
       }}>
-        <span>Group Info</span>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          flex: 1
+        }}>
+          {isEditingName ? (
+            <TextField
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              onBlur={handleNameChange}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleNameChange();
+                }
+              }}
+              autoFocus
+              size="small"
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: theme.palette.mode === 'dark' 
+                    ? 'rgba(82, 44, 93, 0.3)' 
+                    : 'background.paper',
+                  '& fieldset': {
+                    borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.mode === 'dark' ? '#845162' : 'primary.main',
+                  },
+                },
+                '& .MuiInputBase-input': {
+                  color: theme.palette.mode === 'dark' ? '#E3B8B1' : 'text.primary',
+                  fontSize: '1.2rem',
+                },
+              }}
+            />
+          ) : (
+            <>
+              <span>{currentGroupChat.name}</span>
+              {currentGroupChat.members[currentUser.uid]?.role === 'admin' && (
+                <IconButton
+                  onClick={handleEditName}
+                  size="small"
+                  sx={{
+                    color: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
+                    '&:hover': {
+                      backgroundColor: theme.palette.mode === 'dark' 
+                        ? 'rgba(173, 73, 225, 0.08)'
+                        : 'rgba(0, 0, 0, 0.04)',
+                    },
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              )}
+            </>
+          )}
+        </Box>
         {currentGroupChat.members[currentUser.uid]?.role === 'admin' && (
           <IconButton 
-            onClick={onAddMember}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddMember();
+            }}
             sx={{
               color: theme.palette.mode === 'dark' ? '#8967B3' : 'primary.main',
               '&:hover': {

@@ -26,16 +26,17 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
       height: '100vh',
       background: theme.palette.mode === 'dark'
         ? 'linear-gradient(135deg, #150016 0%, #29104A 100%)'
-        : 'background.default',
+        : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
     }}>
       <Box sx={{ 
         width: isMobile ? '100%' : 350,
-        display: selectedChatUser && isMobile ? 'none' : 'block',
+        display: (selectedChatUser || selectedGroupChat) && isMobile ? 'none' : 'block',
         background: theme.palette.mode === 'dark'
           ? 'linear-gradient(180deg, #29104A 0%, #522C5D 100%)'
-          : 'background.paper',
+          : 'rgba(255, 255, 255, 0.85)',
         borderRight: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'rgba(255, 255, 255, 0.2)',
+        backdropFilter: 'blur(10px)',
       }}>
         <Sidebar
           currentUser={currentUser}
@@ -47,11 +48,12 @@ const ChatLayout = ({ currentUser, userData, conversations, handleLogout }) => {
 
       <Box sx={{ 
         flexGrow: 1,
-        display: !selectedChatUser && isMobile ? 'none' : 'flex',
+        display: (!selectedChatUser && !selectedGroupChat) && isMobile ? 'none' : 'flex',
         flexDirection: 'column',
         background: theme.palette.mode === 'dark'
           ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)'
-          : 'background.chat',
+          : 'rgba(255, 255, 255, 0.75)',
+        backdropFilter: 'blur(10px)',
       }}>
         {selectedChatUser ? (
           <ChatArea

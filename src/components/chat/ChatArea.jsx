@@ -21,6 +21,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogContent from '@mui/material/DialogContent';
 import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
+import MessageReactions from './MessageReactions';
 
 const ChatArea = ({ currentUser, chatUser, onClose }) => {
   const theme = useTheme();
@@ -454,34 +455,6 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
     }
   };
 
-  const handleAddReaction = async (emoji, messageId) => {
-    const db = getDatabase();
-    const chatId = [currentUser.uid, chatUser.userId].sort().join('_');
-    const messageRef = ref(db, `messages/${chatId}/${messageId}/reactions`);
-    
-    const reactionKey = `${currentUser.uid}_${emoji}`;
-    const updates = {};
-    updates[reactionKey] = {
-      emoji,
-      userId: currentUser.uid,
-      timestamp: serverTimestamp()
-    };
-    
-    await update(messageRef, updates);
-    setSelectedMessageForReaction(null);
-    setReactionAnchorEl(null);
-  };
-
-  const handleRemoveReaction = async (messageId, emoji) => {
-    const db = getDatabase();
-    const chatId = [currentUser.uid, chatUser.userId].sort().join('_');
-    const reactionRef = ref(db, `messages/${chatId}/${messageId}/reactions/${currentUser.uid}_${emoji}`);
-    await set(reactionRef, null);
-  };
-
-  // Common emoji reactions
-  const reactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
-
   const handleImageSelect = (event) => {
     const file = event.target.files[0];
     if (file && file.type.startsWith('image/')) {
@@ -553,7 +526,9 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      bgcolor: theme.palette.mode === 'dark' ? '#150016' : 'background.paper',
+      bgcolor: theme.palette.mode === 'dark' 
+        ? '#150016' 
+        : 'transparent',
       position: 'relative',
     }}>
       {/* Chat Header */}
@@ -562,10 +537,13 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         borderBottom: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        borderColor: theme.palette.mode === 'dark' 
+          ? '#522C5D' 
+          : 'rgba(255, 255, 255, 0.2)',
         background: theme.palette.mode === 'dark'
           ? 'linear-gradient(135deg, #29104A 0%, #522C5D 100%)'
-          : '#ffffff',
+          : 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(10px)',
       }}>
         <Box sx={{ position: 'relative', mr: 2 }}>
           <Avatar
@@ -616,7 +594,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         overflowX: 'hidden',
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)' 
-          : 'background.default',
+          : 'transparent',
         p: 3,
         maxHeight: replyingTo ? 'calc(100vh - 200px)' : 'calc(100vh - 160px)',
         '&::-webkit-scrollbar': {
@@ -628,7 +606,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         '&::-webkit-scrollbar-thumb': {
           background: theme.palette.mode === 'dark' 
             ? 'linear-gradient(180deg, #845162 0%, #E3B8B1 100%)' 
-            : '#888',
+            : 'rgba(126, 96, 191, 0.5)',
           borderRadius: '4px',
         },
       }}>
@@ -801,85 +779,20 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                   </Typography>
                 </Box>
 
-                {/* Reactions display - moved outside the chat bubble */}
-                {messageReactions.length > 0 && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 0.5,
-                      position: 'absolute',
-                      bottom: 0,
-                      left: isCurrentUserMessage ? 'auto' : 10,
-                      right: isCurrentUserMessage ? 10 : 'auto',
-                      transform: 'translateY(50%)',
-                      zIndex: 1,
-                      flexDirection: 'row',
-                      '& > div': {
-                        backgroundColor: theme.palette.mode === 'dark'
-                          ? 'rgba(255, 255, 255, 0.15)'
-                          : 'rgba(255, 255, 255, 1)', // Full white background in light mode
-                        borderRadius: '12px',
-                        padding: '1px 4px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        border: '1px solid',
-                        borderColor: theme.palette.mode === 'dark'
-                          ? 'rgba(255, 255, 255, 0.2)'
-                          : 'rgba(0, 0, 0, 0.15)', // Darker border in light mode
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.15)',
-                        minWidth: '28px',
-                        justifyContent: 'center',
-                        '&:hover': {
-                          backgroundColor: theme.palette.mode === 'dark'
-                            ? 'rgba(255, 255, 255, 0.25)'
-                            : 'rgba(255, 255, 255, 1)',
-                          borderColor: theme.palette.mode === 'dark'
-                            ? 'rgba(255, 255, 255, 0.3)'
-                            : 'rgba(0, 0, 0, 0.25)',
-                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
-                        }
-                      }
-                    }}
-                  >
-                    {Array.from(new Set(messageReactions.map(r => r.emoji))).map(emoji => {
-                      const count = messageReactions.filter(r => r.emoji === emoji).length;
-                      const hasReacted = messageReactions.some(r => r.emoji === emoji && r.userId === currentUser.uid);
-                      
-                      return (
-                        <Box
-                          key={emoji}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            hasReacted 
-                              ? handleRemoveReaction(msg.messageId, emoji)
-                              : handleAddReaction(emoji, msg.messageId);
-                          }}
-                          sx={{
-                            opacity: 1, // Full opacity for emojis
-                            transform: hasReacted ? 'scale(1.1)' : 'scale(1)',
-                            transition: 'all 0.2s ease',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '2px',
-                            color: 'rgba(0, 0, 0, 0.9)', // Darker text in light mode
-                            fontWeight: hasReacted ? 600 : 400,
-                          }}
-                        >
-                          {emoji} {count > 1 && <span style={{ 
-                            fontSize: '0.7rem',
-                            opacity: 0.9,
-                            color: theme.palette.mode === 'dark' 
-                              ? 'rgba(255, 255, 255, 0.9)'
-                              : 'rgba(0, 0, 0, 0.7)',
-                          }}>{count}</span>}
-                        </Box>
-                      );
-                    })}
-                  </Box>
-                )}
+                <MessageReactions
+                  messageReactions={msg.reactions ? Object.values(msg.reactions) : []}
+                  messageId={msg.messageId}
+                  currentUser={currentUser}
+                  chatUser={chatUser}
+                  isCurrentUserMessage={isCurrentUserMessage}
+                  reactionAnchorEl={reactionAnchorEl}
+                  selectedMessageForReaction={selectedMessageForReaction}
+                  onCloseReactionMenu={() => {
+                    setSelectedMessageForReaction(null);
+                    setReactionAnchorEl(null);
+                  }}
+                  onReactionClick={handleReactionClick}
+                />
 
                 <Typography 
                   variant="caption" 
@@ -1050,12 +963,15 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         p: 2,
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(180deg, #522C5D 0%, #29104A 100%)' 
-          : 'background.paper',
+          : 'rgba(255, 255, 255, 0.85)',
         borderTop: '1px solid',
-        borderColor: theme.palette.mode === 'dark' ? '#522C5D' : 'divider',
+        borderColor: theme.palette.mode === 'dark' 
+          ? '#522C5D' 
+          : 'rgba(255, 255, 255, 0.2)',
         boxShadow: theme.palette.mode === 'dark' 
           ? '0 -2px 8px rgba(21, 0, 22, 0.2)'
           : '0 -2px 8px rgba(0, 0, 0, 0.05)',
+        backdropFilter: 'blur(10px)',
         position: 'relative',
         zIndex: 1,
         minHeight: replyingTo ? '120px' : '80px',
@@ -1170,71 +1086,6 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         open={isUserInfoModalOpen}
         onClose={() => setIsUserInfoModalOpen(false)}
       />
-
-      <Popover
-        open={Boolean(selectedMessageForReaction) && Boolean(reactionAnchorEl)}
-        anchorEl={reactionAnchorEl}
-        onClose={() => {
-          setSelectedMessageForReaction(null);
-          setReactionAnchorEl(null);
-        }}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-        sx={{
-          '& .MuiPopover-paper': {
-            marginTop: '5px',
-            marginLeft: '10px',
-          }
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 1,
-            p: 1,
-            backgroundColor: theme.palette.mode === 'dark' ? '#2f3136' : '#fff',
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: theme.palette.mode === 'dark'
-              ? 'rgba(255, 255, 255, 0.1)'
-              : 'rgba(0, 0, 0, 0.1)',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
-            '& > span': {
-              cursor: 'pointer',
-              fontSize: '24px',
-              transition: 'transform 0.2s ease',
-              padding: '4px 8px',
-              borderRadius: '8px',
-              '&:hover': {
-                transform: 'scale(1.2)',
-                backgroundColor: theme.palette.mode === 'dark'
-                  ? 'rgba(255, 255, 255, 0.1)'
-                  : 'rgba(0, 0, 0, 0.05)',
-              },
-            },
-          }}
-        >
-          {reactions.map((emoji) => (
-            <span
-              key={emoji}
-              onClick={() => {
-                if (selectedMessageForReaction) {
-                  handleAddReaction(emoji, selectedMessageForReaction.messageId);
-                }
-              }}
-              role="button"
-            >
-              {emoji}
-            </span>
-          ))}
-        </Box>
-      </Popover>
 
       <Dialog
         open={Boolean(previewImage)}

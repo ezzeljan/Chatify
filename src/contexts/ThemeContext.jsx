@@ -25,7 +25,7 @@ export const ThemeProvider = ({ children }) => {
         main: '#7E60BF',
       },
       background: {
-        default: darkMode ? '#202225' : '#f5f7fb',
+        default: darkMode ? '#202225' : 'linear-gradient(135deg, #FFE1FF, #E4B1F0, #7E60BF)',
         paper: darkMode ? '#2f3136' : '#ffffff',
         chat: darkMode ? '#36393f' : '#f0f4f8',
       },
