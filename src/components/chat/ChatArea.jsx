@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Box, Typography, Avatar, Grid, TextField, Button, Menu, MenuItem, IconButton, Snackbar, CircularProgress, Fab, useTheme } from '@mui/material';
+import { Box, Typography, Avatar, Grid, TextField, Button, Menu, MenuItem, IconButton, Snackbar, CircularProgress, Fab, useTheme, Popover } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import CloseIcon from '@mui/icons-material/Close';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -7,11 +7,20 @@ import ReplyIcon from '@mui/icons-material/Reply';
 import CircleIcon from '@mui/icons-material/Circle';
 import DoNotDisturbOnIcon from '@mui/icons-material/DoNotDisturbOn';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import AutorenewIcon from '@mui/icons-material/Autorenew';
+import TranslateIcon from '@mui/icons-material/Translate';
+import AddReactionIcon from '@mui/icons-material/AddReaction';
+import ImageIcon from '@mui/icons-material/Image';
 import { getDatabase, ref, onValue, push, set, serverTimestamp, off, update, get } from "firebase/database";
 import { translateToLanguage } from '../../services/geminiTranslator';
 import TranslationAnimation from './TranslationAnimation';
 import UserInfoModal from './UserInfoModal';
 import { keyframes } from '@mui/system';
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import ZoomInIcon from '@mui/icons-material/ZoomIn';
+import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 
 const ChatArea = ({ currentUser, chatUser, onClose }) => {
   const theme = useTheme();
@@ -43,6 +52,13 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
   const messageRefs = useRef({});
   const [highlightedMessageId, setHighlightedMessageId] = useState(null);
   const [previousLanguage, setPreviousLanguage] = useState(chatUser.language);
+  const [reactionAnchorEl, setReactionAnchorEl] = useState(null);
+  const [selectedMessageForReaction, setSelectedMessageForReaction] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef(null);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [imageZoom, setImageZoom] = useState(1);
 
   const pulseAnimation = keyframes`
     0% {
@@ -354,8 +370,12 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
   };
 
   const handleReply = (message) => {
-    setReplyingTo(message);
-    // Optionally, you can focus on the text input here
+    setReplyingTo({
+      messageId: message.messageId,
+      message: message.type === 'image' ? 'Photo' : message.message,
+      senderId: message.senderId,
+      type: message.type
+    });
   };
 
   const handleCancelReply = () => {
@@ -430,12 +450,116 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
     }
   };
 
+  const handleReactionClick = (messageId) => {
+    const message = messages.find(msg => msg.messageId === messageId);
+    if (message) {
+      setSelectedMessageForReaction(message);
+      setReactionAnchorEl(document.getElementById(`message-${messageId}`));
+      handleCloseMenu();
+    }
+  };
+
+  const handleAddReaction = async (emoji, messageId) => {
+    const db = getDatabase();
+    const chatId = [currentUser.uid, chatUser.userId].sort().join('_');
+    const messageRef = ref(db, `messages/${chatId}/${messageId}/reactions`);
+    
+    const reactionKey = `${currentUser.uid}_${emoji}`;
+    const updates = {};
+    updates[reactionKey] = {
+      emoji,
+      userId: currentUser.uid,
+      timestamp: serverTimestamp()
+    };
+    
+    await update(messageRef, updates);
+    setSelectedMessageForReaction(null);
+    setReactionAnchorEl(null);
+  };
+
+  const handleRemoveReaction = async (messageId, emoji) => {
+    const db = getDatabase();
+    const chatId = [currentUser.uid, chatUser.userId].sort().join('_');
+    const reactionRef = ref(db, `messages/${chatId}/${messageId}/reactions/${currentUser.uid}_${emoji}`);
+    await set(reactionRef, null);
+  };
+
+  // Common emoji reactions
+  const reactions = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      handleSendImage(file);
+    }
+  };
+
+  const handleSendImage = async (file) => {
+    if (!file) return;
+    
+    setIsUploadingImage(true);
+    try {
+      const storage = getStorage();
+      const chatId = [currentUser.uid, chatUser.userId].sort().join('_');
+      const imageRef = storageRef(storage, `chat_images/${chatId}/${Date.now()}_${file.name}`);
+      
+      await uploadBytes(imageRef, file);
+      const imageUrl = await getDownloadURL(imageRef);
+      
+      const db = getDatabase();
+      const messagesRef = ref(db, `messages/${chatId}`);
+      const newMessageRef = push(messagesRef);
+      
+      await set(newMessageRef, {
+        messageId: newMessageRef.key,
+        senderId: currentUser.uid,
+        timestamp: serverTimestamp(),
+        type: 'image',
+        imageUrl: imageUrl,
+        replyTo: replyingTo ? {
+          messageId: replyingTo.messageId,
+          message: replyingTo.type === 'image' ? 'Photo' : replyingTo.message,
+          senderId: replyingTo.senderId,
+          type: replyingTo.type
+        } : null
+      });
+      
+      setReplyingTo(null);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      // You might want to show an error notification here
+    } finally {
+      setIsUploadingImage(false);
+      setSelectedImage(null);
+    }
+  };
+
+  const handleImagePreview = (imageUrl) => {
+    setPreviewImage(imageUrl);
+    setImageZoom(1); // Reset zoom when opening new image
+  };
+
+  const handleClosePreview = () => {
+    setPreviewImage(null);
+    setImageZoom(1);
+  };
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.25, 3));
+  };
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.25, 0.5));
+  };
+
   return (
     <Box sx={{ 
       height: '100vh',
       display: 'flex',
       flexDirection: 'column',
       bgcolor: theme.palette.mode === 'dark' ? '#150016' : 'background.paper',
+      position: 'relative',
     }}>
       {/* Chat Header */}
       <Box sx={{
@@ -494,10 +618,12 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
       <Box ref={chatContainerRef} sx={{ 
         flexGrow: 1,
         overflowY: 'auto',
+        overflowX: 'hidden',
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(180deg, #29104A 0%, #522C5D 50%, #845162 100%)' 
           : 'background.default',
         p: 3,
+        maxHeight: replyingTo ? 'calc(100vh - 200px)' : 'calc(100vh - 160px)',
         '&::-webkit-scrollbar': {
           width: '8px',
         },
@@ -518,6 +644,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
           const isCurrentUserMessage = msg.senderId === currentUser.uid;
           const messageToDisplay = isCurrentUserMessage ? msg.messageOG : (msg.message || msg.messageOG);
           const isTranslating = !isCurrentUserMessage && msg.message === "Translating...";
+          const messageReactions = msg.reactions ? Object.values(msg.reactions) : [];
 
           return (
             <Grid
@@ -554,15 +681,16 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                 }}
               >
                 <Box
+                  id={`message-${msg.messageId}`}
                   sx={{
                     px: 2,
                     py: 1.5,
                     backgroundColor: isCurrentUserMessage
                       ? theme.palette.mode === 'dark'
-                        ? 'rgba(82, 44, 93, 0.85)'  // Solid color with slight transparency for user messages
+                        ? 'rgba(82, 44, 93, 0.85)'
                         : theme.palette.primary.main
                       : theme.palette.mode === 'dark'
-                        ? 'rgba(132, 81, 98, 0.75)' // Solid color with slight transparency for contact messages
+                        ? 'rgba(132, 81, 98, 0.75)'
                         : '#E5D9F2',
                     color: isCurrentUserMessage 
                       ? '#fff' 
@@ -605,15 +733,6 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                       borderLeft: '8px solid transparent',
                       borderRight: '8px solid transparent',
                     } : undefined,
-                    '&:hover': {
-                      backgroundColor: isCurrentUserMessage
-                        ? theme.palette.mode === 'dark'
-                          ? 'rgba(82, 44, 93, 0.95)'  // Slightly more opaque on hover
-                          : theme.palette.primary.dark
-                        : theme.palette.mode === 'dark'
-                          ? 'rgba(132, 81, 98, 0.85)'  // Slightly more opaque on hover
-                          : '#d8c8eb',
-                    },
                   }}
                   onClick={(e) => handleMessageClick(e, msg)}
                 >
@@ -637,7 +756,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                         {msg.replyTo.senderId === currentUser.uid ? 'You' : chatUser.username}
                       </Typography>
                       <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary' }}>
-                        {msg.replyTo.message}
+                        {msg.replyTo.type === 'image' ? 'Photo' : msg.replyTo.message}
                       </Typography>
                     </Box>
                   )}
@@ -646,7 +765,30 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                   ) : isTranslating ? (
                     <TranslationAnimation />
                   ) : (
-                    <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>{messageToDisplay}</Typography>
+                    msg.type === 'image' ? (
+                      <Box
+                        component="img"
+                        src={msg.imageUrl}
+                        alt="Chat image"
+                        sx={{
+                          maxWidth: '100%',
+                          maxHeight: '300px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            opacity: 0.9,
+                          },
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleImagePreview(msg.imageUrl);
+                        }}
+                      />
+                    ) : (
+                      <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+                        {messageToDisplay}
+                      </Typography>
+                    )
                   )}
                   <Typography 
                     variant="caption" 
@@ -663,6 +805,87 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
                     {msg.messageOG}
                   </Typography>
                 </Box>
+
+                {/* Reactions display - moved outside the chat bubble */}
+                {messageReactions.length > 0 && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 0.5,
+                      position: 'absolute',
+                      bottom: 0,
+                      left: isCurrentUserMessage ? 'auto' : 10,
+                      right: isCurrentUserMessage ? 10 : 'auto',
+                      transform: 'translateY(50%)',
+                      zIndex: 1,
+                      flexDirection: 'row',
+                      '& > div': {
+                        backgroundColor: theme.palette.mode === 'dark'
+                          ? 'rgba(255, 255, 255, 0.15)'
+                          : 'rgba(255, 255, 255, 1)', // Full white background in light mode
+                        borderRadius: '12px',
+                        padding: '1px 4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        border: '1px solid',
+                        borderColor: theme.palette.mode === 'dark'
+                          ? 'rgba(255, 255, 255, 0.2)'
+                          : 'rgba(0, 0, 0, 0.15)', // Darker border in light mode
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.15)',
+                        minWidth: '28px',
+                        justifyContent: 'center',
+                        '&:hover': {
+                          backgroundColor: theme.palette.mode === 'dark'
+                            ? 'rgba(255, 255, 255, 0.25)'
+                            : 'rgba(255, 255, 255, 1)',
+                          borderColor: theme.palette.mode === 'dark'
+                            ? 'rgba(255, 255, 255, 0.3)'
+                            : 'rgba(0, 0, 0, 0.25)',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
+                        }
+                      }
+                    }}
+                  >
+                    {Array.from(new Set(messageReactions.map(r => r.emoji))).map(emoji => {
+                      const count = messageReactions.filter(r => r.emoji === emoji).length;
+                      const hasReacted = messageReactions.some(r => r.emoji === emoji && r.userId === currentUser.uid);
+                      
+                      return (
+                        <Box
+                          key={emoji}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            hasReacted 
+                              ? handleRemoveReaction(msg.messageId, emoji)
+                              : handleAddReaction(emoji, msg.messageId);
+                          }}
+                          sx={{
+                            opacity: 1, // Full opacity for emojis
+                            transform: hasReacted ? 'scale(1.1)' : 'scale(1)',
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                            color: 'rgba(0, 0, 0, 0.9)', // Darker text in light mode
+                            fontWeight: hasReacted ? 600 : 400,
+                          }}
+                        >
+                          {emoji} {count > 1 && <span style={{ 
+                            fontSize: '0.7rem',
+                            opacity: 0.9,
+                            color: theme.palette.mode === 'dark' 
+                              ? 'rgba(255, 255, 255, 0.9)'
+                              : 'rgba(0, 0, 0, 0.7)',
+                          }}>{count}</span>}
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+
                 <Typography 
                   variant="caption" 
                   sx={{ 
@@ -754,17 +977,43 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
           },
         }}
       >
+        <MenuItem
+          onClick={() => {
+            const message = messages.find(msg => msg.messageId === selectedMessageId);
+            if (message) {
+              handleReply(message);
+              handleCloseMenu();
+            }
+          }}
+          sx={{
+            fontSize: '14px',
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            '&:hover': {
+              backgroundColor: '#FFE1FF',
+            },
+          }}
+        >
+          <ReplyIcon fontSize="small" />
+          Reply
+        </MenuItem>
         {messages.find(msg => msg.messageId === selectedMessageId)?.messageVar2 && (
           <MenuItem
             onClick={() => handleMenuOption('regenerate', selectedMessageId)}
             sx={{
               fontSize: '14px',
               padding: '8px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
               '&:hover': {
                 backgroundColor: '#FFE1FF',
               },
             }}
           >
+            <AutorenewIcon fontSize="small" />
             Regenerate Translation
           </MenuItem>
         )}
@@ -773,18 +1022,36 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
           sx={{
             fontSize: '14px',
             padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
             '&:hover': {
               backgroundColor: '#FFE1FF',
             },
           }}
         >
+          <TranslateIcon fontSize="small" />
           {showOriginalFor === selectedMessageId ? 'Hide Original Message' : 'Show Original Message'}
+        </MenuItem>
+        <MenuItem
+          onClick={() => handleReactionClick(selectedMessageId)}
+          sx={{
+            fontSize: '14px',
+            padding: '8px 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            '&:hover': {
+              backgroundColor: '#FFE1FF',
+            },
+          }}
+        >
+          <AddReactionIcon fontSize="small" />
+          Add Reaction
         </MenuItem>
       </Menu>
 
       <Box sx={{
-        display: 'flex',
-        flexDirection: 'column',
         p: 2,
         background: theme.palette.mode === 'dark' 
           ? 'linear-gradient(180deg, #522C5D 0%, #29104A 100%)' 
@@ -796,6 +1063,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
           : '0 -2px 8px rgba(0, 0, 0, 0.05)',
         position: 'relative',
         zIndex: 1,
+        minHeight: replyingTo ? '120px' : '80px',
       }}>
         {replyingTo && (
           <Box sx={{ 
@@ -809,7 +1077,7 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
             marginBottom: '8px'
           }}>
             <Typography variant="body2" sx={{ flexGrow: 1, marginRight: '8px' }}>
-              Replying to: {replyingTo.message}
+              Replying to: {replyingTo.type === 'image' ? 'Photo' : replyingTo.message}
             </Typography>
             <IconButton size="small" onClick={handleCancelReply}>
               <CloseIcon fontSize="small" />
@@ -817,6 +1085,27 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
           </Box>
         )}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+          />
+          <IconButton
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingImage}
+            sx={{
+              mr: 1,
+              color: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.7)' : 'inherit',
+            }}
+          >
+            {isUploadingImage ? (
+              <CircularProgress size={24} />
+            ) : (
+              <ImageIcon />
+            )}
+          </IconButton>
           <TextField
             fullWidth
             variant="outlined"
@@ -886,6 +1175,159 @@ const ChatArea = ({ currentUser, chatUser, onClose }) => {
         open={isUserInfoModalOpen}
         onClose={() => setIsUserInfoModalOpen(false)}
       />
+
+      <Popover
+        open={Boolean(selectedMessageForReaction) && Boolean(reactionAnchorEl)}
+        anchorEl={reactionAnchorEl}
+        onClose={() => {
+          setSelectedMessageForReaction(null);
+          setReactionAnchorEl(null);
+        }}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        sx={{
+          '& .MuiPopover-paper': {
+            marginTop: '5px',
+            marginLeft: '10px',
+          }
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            gap: 1,
+            p: 1,
+            backgroundColor: theme.palette.mode === 'dark' ? '#2f3136' : '#fff',
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: theme.palette.mode === 'dark'
+              ? 'rgba(255, 255, 255, 0.1)'
+              : 'rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+            '& > span': {
+              cursor: 'pointer',
+              fontSize: '24px',
+              transition: 'transform 0.2s ease',
+              padding: '4px 8px',
+              borderRadius: '8px',
+              '&:hover': {
+                transform: 'scale(1.2)',
+                backgroundColor: theme.palette.mode === 'dark'
+                  ? 'rgba(255, 255, 255, 0.1)'
+                  : 'rgba(0, 0, 0, 0.05)',
+              },
+            },
+          }}
+        >
+          {reactions.map((emoji) => (
+            <span
+              key={emoji}
+              onClick={() => {
+                if (selectedMessageForReaction) {
+                  handleAddReaction(emoji, selectedMessageForReaction.messageId);
+                }
+              }}
+              role="button"
+            >
+              {emoji}
+            </span>
+          ))}
+        </Box>
+      </Popover>
+
+      <Dialog
+        open={Boolean(previewImage)}
+        onClose={handleClosePreview}
+        maxWidth={false}
+        sx={{
+          '& .MuiDialog-paper': {
+            backgroundColor: 'transparent',
+            boxShadow: 'none',
+            margin: 0,
+            maxHeight: '100vh',
+            maxWidth: '100vw',
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          },
+        }}
+      >
+        <DialogContent
+          sx={{
+            position: 'relative',
+            p: 0,
+            '&::-webkit-scrollbar': {
+              display: 'none',
+            },
+            backgroundColor: 'transparent',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100%',
+          }}
+          onClick={handleClosePreview}
+        >
+          <Box
+            sx={{
+              position: 'fixed',
+              top: 16,
+              right: 16,
+              zIndex: 2,
+              display: 'flex',
+              gap: 1,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              borderRadius: '20px',
+              padding: '4px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IconButton
+              size="small"
+              onClick={handleZoomIn}
+              sx={{ color: 'white' }}
+            >
+              <ZoomInIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={handleZoomOut}
+              sx={{ color: 'white' }}
+            >
+              <ZoomOutIcon />
+            </IconButton>
+            <IconButton
+              size="small"
+              onClick={handleClosePreview}
+              sx={{ color: 'white' }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          <Box
+            component="img"
+            src={previewImage}
+            alt="Preview"
+            onClick={(e) => e.stopPropagation()}
+            sx={{
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              objectFit: 'contain',
+              transform: `scale(${imageZoom})`,
+              transition: 'transform 0.2s ease-in-out',
+              cursor: 'default',
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

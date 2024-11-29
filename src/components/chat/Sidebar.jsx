@@ -73,6 +73,7 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
               message: latestMessage.message || '',
               messageOG: latestMessage.messageOG || '',
               senderId: latestMessage.senderId,
+              type: latestMessage.type || 'text'
             };
           }
         });
@@ -373,12 +374,14 @@ const Sidebar = ({ currentUser, selectChatUser, handleLogout, activeChatUserId }
                   noWrap
                 >
                   {lastMessages[user.userId] 
-                    ? truncateMessage(
-                        lastMessages[user.userId].senderId === currentUser.uid 
-                          ? lastMessages[user.userId].messageOG 
-                          : lastMessages[user.userId].message, 
-                        20
-                      ) 
+                    ? lastMessages[user.userId].type === 'image'
+                      ? `${lastMessages[user.userId].senderId === currentUser.uid ? 'You' : user.username} sent a photo`
+                      : truncateMessage(
+                          lastMessages[user.userId].senderId === currentUser.uid 
+                            ? lastMessages[user.userId].messageOG 
+                            : lastMessages[user.userId].message, 
+                          20
+                        ) 
                     : user.email}
                 </Typography>
               }
