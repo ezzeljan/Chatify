@@ -2,6 +2,7 @@ import React from 'react';
 import { Box, Container, Typography, Button, Grid, Avatar } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import chatifyLogo from '../../assets/chatifylogo.png';
+import ChristmasSnow from './ChristmasSnow';
 
 const LandingPage = () => {
   const navigate = useNavigate();
@@ -22,12 +23,13 @@ const LandingPage = () => {
       backgroundAttachment: 'fixed',
       color: '#433878'
     }}>
+      <ChristmasSnow />
       <Container maxWidth="lg">
         <Box sx={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'center', 
-          py: 2 
+          py: 2 ,
         }}>
           <img src={chatifyLogo} alt="Chatify Logo" style={{ height: '50px' }} />
           <Box>
@@ -142,7 +144,7 @@ const LandingPage = () => {
                   sx={{
                     p: 3,
                     background: 'rgba(255, 255, 255, 0.7)',
-                    borderRadius: '30px',
+                    borderRadius: '10px',
                     height: '100%',
                     transition: 'transform 0.2s',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
@@ -183,7 +185,7 @@ const LandingPage = () => {
                     alignItems: 'center',
                     p: 3,
                     background: 'rgba(255, 255, 255, 0.7)',
-                    borderRadius: '30px',
+                    borderRadius: '20px',
                     transition: 'transform 0.2s',
                     boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
                     '&:hover': {
@@ -222,6 +224,44 @@ const LandingPage = () => {
           </Grid>
         </Box>
       </Container>
+      <footer style={{
+                backgroundColor: 'rgba(248, 248, 248, 0.2)', // Background color for the footer
+                padding: '0 0 20px 0', // Padding for the footer
+                textAlign: 'center', // Center the text
+                position: 'relative', // Position relative for any absolute positioning inside
+            }}>
+                <hr style={{
+                    border: 'none', // Remove default border
+                    margin: '50px 0 20px 0',
+                    height: '1px', // Set height
+                    backgroundColor: '#b27fd4', // Color of the hr
+                }} />
+                <Typography variant="body1" sx={{ 
+                    mb: 1, 
+                    color: '#a26cc8',
+                    fontWeight: 'bold',
+                    textShadow: '1px 1px 2px rgba(0,0,0,0.1)'
+                }}>
+                    Chatify
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                    color: '#a26cc8', 
+                    textAlign: 'center', 
+                    maxWidth: '600px', 
+                    margin: '0 auto' 
+                }}>
+                    Chatify is an AI-integrated messaging application that provides real-time translation of chats into user's preferred language.
+                </Typography>
+                <Typography variant="body2" sx={{ 
+                    color: '#a26cc8', 
+                    textAlign: 'center', 
+                    maxWidth: '600px', 
+                    margin: '0 auto',
+                    mt: 2 
+                }}>
+                    Copyright &copy; 2024
+                </Typography>
+            </footer>
     </Box>
   );
 };
