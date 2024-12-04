@@ -15,9 +15,6 @@ Chatify is a real-time chat application that breaks down language barriers, allo
 - 📸 Profile image upload and management
 - 🔄 Real-time online/offline status
 
-
-## 🛠️ Technologies Used
-
 ### Frontend
 - Vite + React - Fast and modern build tool and UI library
 - MUI (Material-UI) - Comprehensive UI component library
@@ -29,16 +26,6 @@ Chatify is a real-time chat application that breaks down language barriers, allo
 - Firebase Storage - File storage for profile images
 - Gemini Generative AI - Advanced message translation
 
-## 🏗️ Architecture
-
-Chatify uses a serverless architecture powered by Firebase services:
-
-- **Authentication Flow**: Firebase Auth handles user registration, login, and session management
-- **Real-time Communication**: Firebase Realtime Database enables instant message delivery and status updates
-- **File Management**: Firebase Storage manages user profile images and media
-- **Translation Service**: Gemini API provides AI-powered message translation between languages
-
-This serverless approach eliminates the need for a traditional backend server while providing robust scalability and real-time capabilities.
 
 ## 🚀 Getting Started
 
@@ -51,7 +38,7 @@ Follow these steps to set up Chatify Web on your local machine:
    ```toml
    GEMINI_API_KEY = "your_gemini_api_key"
    ```
-   (You can ask Makizz for the key 😉)
+   (You can also use our api key just extract gemini_api_key.zip at its current path)
 
 3. **Install dependencies:**
    ```
